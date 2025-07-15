@@ -1,39 +1,39 @@
 # IRLog
-Interventional Radiology Procedure Log System
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+IRLog is an application designed to help interventional radiology teams keep track of procedures performed. It allows users to log, view, and manage records of radiology procedures in an organized and user-friendly way.
 
-## Getting Started
+With IRLog, you can:
+- Record details of each procedure
+- View and search past procedure logs
+- Manage user profiles
+- Access analytics and summaries of procedures
 
-First, run the development server:
+This app is built to make record-keeping easy and efficient for radiology departments.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup Instructions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To use IRLog, you need to do a few simple things:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Database:**
+   - IRLog uses a PostgreSQL database to store all the information. Make sure you have access to a PostgreSQL database (you can use a free service or install it on your computer).
 
-## Learn More
+2. **Environment File:**
+   - You need a file called `.env` in the main folder. This file stores important settings like your database connection. Here is an example of what it might look like:
+     
+     ```env
+     DATABASE_URL=postgresql://your_username:your_password@localhost:5432/your_database
+     NEXTAUTH_SECRET=your_secret_key
+     NEXTAUTH_URL=http://localhost:3000
+     ```
+   - Replace the values with your own information.
 
-To learn more about Next.js, take a look at the following resources:
+3. **Install Dependencies:**
+   - Run `npm install` to get everything the app needs.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. **Start the App:**
+   - Run `npm run dev` to start the app in development mode.
+   - Open your web browser and go to [http://localhost:3000](http://localhost:3000)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+If you need help with any of these steps, ask your technical team or reach out for support.
