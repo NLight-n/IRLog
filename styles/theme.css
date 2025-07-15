@@ -1,0 +1,7 @@
+/* Add dark mode hover for table rows */
+.hover\:bg-accent-100:hover {
+  background-color: var(--color-accent-100, #f3f4f6) !important;
+}
+.dark .dark\:hover\:bg-accent-900:hover {
+  background-color: var(--color-accent-900, #23272f) !important;
+}
