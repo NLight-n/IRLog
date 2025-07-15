@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "start": "next start"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -36,13 +35,10 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/minio": "^7.1.0",
     "@types/next": "^8.0.7",
-    "@types/node": "^20.19.4",
+    "@types/node": "20.19.7",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "ts-node": "^10.9.2",
     "typescript": "^5"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   }
 }

@@ -28,4 +28,5 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "start"] 
+# Start the app with migrations
+CMD npx prisma migrate deploy && npm start 
