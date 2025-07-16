@@ -31,8 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdByObj: found.createdBy ? { name: found.createdBy.username } : null,
       updatedByObj: found.updatedBy ? { name: found.updatedBy.username } : null,
     };
-    delete result.createdBy;
-    delete result.updatedBy;
+    delete (result as any).createdBy;
+    delete (result as any).updatedBy;
     return res.status(200).json(result);
   }
 
