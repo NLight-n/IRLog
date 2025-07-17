@@ -14,25 +14,46 @@ This app is built to make record-keeping easy and efficient for radiology depart
 
 ## Setup Instructions
 
-To use IRLog, you need to do a few simple things:
+### Preferred: Run with Docker
+
+1. **Environment File:**
+   - Create a `.env` file in the main folder (if it doesn't exist). Example:
+     ```env
+     DATABASE_URL=postgresql://your_username:your_password@postgres:5432/your_database
+     NODE_ENV=production
+     NEXTAUTH_SECRET=your_secret_key
+     NEXTAUTH_URL=http://localhost:3000
+     POSTGRES_USER=your_username
+     POSTGRES_PASSWORD=your_password
+     POSTGRES_DB=your_database
+     PGADMIN_DEFAULT_EMAIL=admin@example.com
+     PGADMIN_DEFAULT_PASSWORD=admin123
+     ```
+   - Replace the values with your own information.
+
+2. **Start with Docker Compose:**
+   - Run the following command in your project directory:
+     ```sh
+     docker-compose up --build
+     ```
+   - This will start the app and all required services (like PostgreSQL) automatically.
+   - Open your web browser and go to [http://localhost:3000](http://localhost:3000)
+
+3. **Stopping the App:**
+   - To stop the app, press `Ctrl+C` in the terminal and then run:
+     ```sh
+     docker-compose down
+     ```
+
+---
+
+### Alternative: Run Locally (without Docker)
 
 1. **Database:**
    - IRLog uses a PostgreSQL database to store all the information. Make sure you have access to a PostgreSQL database (you can use a free service or install it on your computer).
 
 2. **Environment File:**
-   - You need a file called `.env` in the main folder. This file stores important settings like your database connection. Here is an example of what it might look like:
-     
-     ```env
-     DATABASE_URL=postgresql://your_username:your_password@localhost:5432/your_database
-     NODE_ENV=production
-     NEXTAUTH_SECRET=your_secret_key
-     NEXTAUTH_URL=http://localhost:3000
-     POSTGRES_USER=postgres
-     POSTGRES_PASSWORD=pgpassword
-     POSTGRES_DB=test_db
-     PGADMIN_DEFAULT_EMAIL=admin@example.com
-     PGADMIN_DEFAULT_PASSWORD=admin123
-     ```
+   - You need a file called `.env` in the main folder. This file stores important settings like your database connection. See the example above.
    - Replace the values with your own information.
 
 3. **Install Dependencies:**
