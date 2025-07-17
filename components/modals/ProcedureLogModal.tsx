@@ -209,7 +209,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div
-        className="card max-w-4xl w-full mx-4"
+        className="card max-w-4xl w-full mx-4 procedure-log-modal"
         style={{
           position: 'absolute',
           top: navbarHeight + 8,
@@ -218,8 +218,6 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
           margin: '0 auto',
           maxHeight: `calc(100vh - ${navbarHeight + 16}px)`,
           overflowY: 'auto',
-          width: '100%',
-          maxWidth: 500,
         }}
       >
         <div className="card-header flex items-center justify-between">

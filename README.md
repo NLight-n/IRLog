@@ -24,8 +24,14 @@ To use IRLog, you need to do a few simple things:
      
      ```env
      DATABASE_URL=postgresql://your_username:your_password@localhost:5432/your_database
+     NODE_ENV=production
      NEXTAUTH_SECRET=your_secret_key
      NEXTAUTH_URL=http://localhost:3000
+     POSTGRES_USER=postgres
+     POSTGRES_PASSWORD=pgpassword
+     POSTGRES_DB=test_db
+     PGADMIN_DEFAULT_EMAIL=admin@example.com
+     PGADMIN_DEFAULT_PASSWORD=admin123
      ```
    - Replace the values with your own information.
 

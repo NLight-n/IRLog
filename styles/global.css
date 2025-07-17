@@ -833,3 +833,16 @@ p {
 .dark .table thead tr th.ghost-col {
   background-color: var(--color-gray-100) !important;
 }
+
+/* Responsive width for ProcedureLogModal only */
+.procedure-log-modal {
+  width: 95vw;
+  max-width: 400px;
+}
+
+@media (min-width: 768px) {
+  .procedure-log-modal {
+    max-width: 700px;
+    width: 100%;
+  }
+}
