@@ -15,7 +15,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: {
         doneBy: { include: { physician: true } },
         refPhysicianObj: true,
-        procedure: true, // join Procedure table
         createdBy: { select: { username: true } },
       },
       orderBy: { procedureDate: 'desc' },
@@ -24,19 +23,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'GET' && req.query.list === 'true') {
-    // Return unique modalities and procedure names from Procedure table
+    // Return unique procedure names from Procedure table
     const procedures = await prisma.procedure.findMany({
-      select: { modality: true, procedureName: true },
+      select: { procedureName: true },
     });
-    // Get unique modalities and procedure names
-    const modalities = Array.from(new Set(procedures.map((p: any) => p.modality)));
+    // Get unique procedure names
     const procedureNames = Array.from(new Set(procedures.map((p: any) => p.procedureName)));
-    return res.status(200).json({ modalities, procedureNames });
+    return res.status(200).json({ procedureNames });
   }
 
   if (req.method === 'GET' && req.query['list-all'] === 'true') {
     // Return all procedures for dropdown selection
-    const allProcedures = await prisma.procedure.findMany();
+    const allProcedures = await prisma.procedure.findMany({ select: { procedureName: true, proID: true } });
     return res.status(200).json(allProcedures);
   }
 
@@ -48,10 +46,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const data = req.body;
     delete data.procedureID;
     delete data.patientStatus;
-    delete data.modality;
+    // do NOT delete data.modality; it is a valid field now
+    delete data.procedureRef;
     // Convert types as needed
     if (typeof data.patientAge === 'string') data.patientAge = parseInt(data.patientAge) || null;
-    if (typeof data.procedureRef === 'string') data.procedureRef = parseInt(data.procedureRef) || null;
     if (typeof data.procedureCost === 'string') data.procedureCost = parseFloat(data.procedureCost) || null;
     // Combine date and time into ISO string for procedureDate
     if (data.procedureDate && data.procedureTime) {
@@ -68,9 +66,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: {
         ...data,
         createdById: userId,
-      },
-      include: {
-        procedure: true,
       },
     });
     

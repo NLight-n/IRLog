@@ -25,7 +25,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           end: subMonths(startOfMonth(now), i - 1)
         });
       }
-      // Remove the last 'end' (future month)
       months[months.length - 1].end = now;
       const data = [];
       for (const m of months) {
@@ -36,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         };
         if (modality && modality !== 'All') {
-          where.procedure = { modality };
+          where.modality = modality;
         }
         const count = await prisma.procedureLog.count({ where });
         data.push({ label: m.label, count });
@@ -51,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (dateTo) where.procedureDate = { ...(where.procedureDate || {}), lte: parseISO(dateTo as string) };
       const data = [];
       for (const m of modalities) {
-        const count = await prisma.procedureLog.count({ where: { ...where, procedure: { modality: m } } });
+        const count = await prisma.procedureLog.count({ where: { ...where, modality: m } });
         data.push({ label: m, count });
       }
       return res.json({ labels: data.map(d => d.label), data: data.map(d => d.count) });
@@ -74,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Yearly trends: x-axis year, y-axis count, filtered by modality
       let where: any = {};
       if (modality && modality !== 'All') {
-        where.procedure = { modality };
+        where.modality = modality;
       }
       // Find first and last year
       const first = await prisma.procedureLog.findFirst({ orderBy: { procedureDate: 'asc' }, select: { procedureDate: true } });

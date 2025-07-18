@@ -627,21 +627,15 @@ function ProcedureManagement() {
   const [currency, setCurrency] = React.useState('$');
 
   // Filter state
-  const [statusFilter, setStatusFilter] = React.useState('');
-  const [modalityFilter, setModalityFilter] = React.useState('');
   const [procedureNameFilter, setProcedureNameFilter] = React.useState('');
 
   // Filtered procedures
   const filteredProcedures = procedures.filter((p: any) => {
-    if (statusFilter && statusFilter !== 'All' && p.patientStatus !== statusFilter) return false;
-    if (modalityFilter && modalityFilter !== 'All' && p.modality !== modalityFilter) return false;
     if (procedureNameFilter && !p.procedureName.toLowerCase().includes(procedureNameFilter.toLowerCase())) return false;
     return true;
   });
 
   const clearFilters = () => {
-    setStatusFilter('');
-    setModalityFilter('');
     setProcedureNameFilter('');
   };
 
@@ -716,33 +710,6 @@ function ProcedureManagement() {
       </div>
       {/* Filter Bar */}
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 12, paddingLeft: 16, flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 120 }}>
-          <label className="block text-sm font-medium mb-1">Status</label>
-          <select
-            className="form-input w-full"
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="IP">IP</option>
-            <option value="OP">OP</option>
-          </select>
-        </div>
-        <div style={{ minWidth: 160 }}>
-          <label className="block text-sm font-medium mb-1">Modality</label>
-          <select
-            className="form-input w-full"
-            value={modalityFilter}
-            onChange={e => setModalityFilter(e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="USG">USG</option>
-            <option value="CT">CT</option>
-            <option value="OT">OT</option>
-            <option value="Fluoroscopy">Fluoroscopy</option>
-            <option value="DSA">DSA</option>
-          </select>
-        </div>
         <div style={{ minWidth: 200 }}>
           <label className="block text-sm font-medium mb-1">Procedure Name</label>
           <input
@@ -777,8 +744,6 @@ function ProcedureManagement() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Modality</th>
                     <th>Procedure Name</th>
                     <th>Cost</th>
                     <th>Actions</th>
@@ -787,16 +752,6 @@ function ProcedureManagement() {
                 <tbody>
                   {filteredProcedures.map((p: any) => (
                     <tr key={p.proID}>
-                      <td>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          p.patientStatus === 'IP' || p.patientStatus === 'Inpatient'
-                            ? 'bg-light-maroon text-dark-maroon'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {p.patientStatus}
-                        </span>
-                      </td>
-                      <td>{p.modality}</td>
                       <td className="font-medium">{p.procedureName}</td>
                       <td>{p.procedureCost ? `${currency}${p.procedureCost}` : '-'}</td>
                       <td>
@@ -842,8 +797,6 @@ function ProcedureManagement() {
 function ProcedureModal({ open, onClose, onSave, initialData }: any) {
   const safeInitialData = initialData || {};
   const [form, setForm] = React.useState<any>({
-    patientStatus: '',
-    modality: '',
     procedureName: '',
     procedureCost: '',
     ...safeInitialData,
@@ -852,8 +805,6 @@ function ProcedureModal({ open, onClose, onSave, initialData }: any) {
   React.useEffect(() => {
     if (open) {
       setForm({
-        patientStatus: '',
-        modality: '',
         procedureName: '',
         procedureCost: '',
         ...safeInitialData,
@@ -885,43 +836,10 @@ function ProcedureModal({ open, onClose, onSave, initialData }: any) {
         <form onSubmit={handleSubmit} className="card-body">
           <div className="space-y-4">
             <div className="form-group">
-              <label className="form-label">Status</label>
-              <select 
-                name="patientStatus" 
-                value={form.patientStatus} 
-                onChange={handleChange} 
-                required 
-                className="form-select"
-              >
-                <option value="">Select Status</option>
-                <option value="IP">Inpatient (IP)</option>
-                <option value="OP">Outpatient (OP)</option>
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label">Modality</label>
-              <select 
-                name="modality" 
-                value={form.modality} 
-                onChange={handleChange} 
-                required 
-                className="form-select"
-              >
-                <option value="">Select Modality</option>
-                <option value="USG">Ultrasound (USG)</option>
-                <option value="CT">Computed Tomography (CT)</option>
-                <option value="OT">Operating Theater (OT)</option>
-                <option value="Fluoroscopy">Fluoroscopy</option>
-                <option value="DSA">Digital Subtraction Angiography (DSA)</option>
-              </select>
-            </div>
-            
-            <div className="form-group">
               <label className="form-label">Procedure Name</label>
               <input 
                 name="procedureName" 
-                value={form.procedureName} 
+                value={form.procedureName || ''} 
                 onChange={handleChange} 
                 required 
                 className="form-input"
@@ -930,16 +848,16 @@ function ProcedureModal({ open, onClose, onSave, initialData }: any) {
             </div>
             
             <div className="form-group">
-              <label className="form-label">Cost (optional)</label>
+              <label className="form-label">Cost</label>
               <input 
                 name="procedureCost" 
                 type="number" 
-                value={form.procedureCost} 
+                value={form.procedureCost || ''} 
                 onChange={handleChange} 
                 min="0" 
                 step="0.01" 
                 className="form-input"
-                placeholder="0.00"
+                placeholder="0.00 (optional)"
               />
             </div>
           </div>
@@ -1307,7 +1225,6 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
   // Function to format data for display based on the reference format
   function formatDataForDisplay(data: any, tableName: string) {
     if (!data) return null;
-    
     if (tableName === 'ProcedureLog') {
       // Handle doneBy array properly
       let doneByDisplay = '';
@@ -1327,8 +1244,6 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
           doneByDisplay = data.doneBy;
         }
       }
-
-      // Handle refPhysicianObj properly
       let refPhysicianDisplay = '';
       if (data.refPhysicianObj) {
         if (typeof data.refPhysicianObj === 'object') {
@@ -1337,8 +1252,6 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
           refPhysicianDisplay = String(data.refPhysicianObj);
         }
       }
-
-      // Handle createdById and updatedById - these should be usernames, not IDs
       let createdByDisplay = '';
       if (data.createdById) {
         if (typeof data.createdById === 'object' && data.createdById.username) {
@@ -1349,7 +1262,6 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
           createdByDisplay = String(data.createdById);
         }
       }
-
       let updatedByDisplay = '';
       if (data.updatedById) {
         if (typeof data.updatedById === 'object' && data.updatedById.username) {
@@ -1360,7 +1272,6 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
           updatedByDisplay = String(data.updatedById);
         }
       }
-
       return {
         notes: data.notes || null,
         doneBy: doneByDisplay,
@@ -1368,11 +1279,9 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
         createdAt: data.createdAt,
         diagnosis: data.diagnosis || '',
         patientID: data.patientID || '',
-        procedure: data.procedure ? {
-          modality: data.procedure.modality || '',
-          patientStatus: data.procedure.patientStatus || '',
-          procedureName: data.procedure.procedureName || ''
-        } : null,
+        procedureName: data.procedureName || '',
+        status: data.status || '',
+        modality: data.modality || '',
         updatedAt: data.updatedAt,
         patientAge: data.patientAge || '',
         patientSex: data.patientSex || '',
@@ -1386,7 +1295,6 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
         procedureNotesText: data.procedureNotesText || ''
       };
     }
-    
     // For other tables, return the data as is but remove IDs
     const cleaned = { ...data };
     delete cleaned.id;
@@ -1406,7 +1314,9 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
       'patientName',
       'patientAge',
       'patientSex',
-      'procedure',
+      'procedureName',
+      'status',
+      'modality',
       'diagnosis',
       'doneBy',
       'refPhysicianObj',

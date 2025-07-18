@@ -7,9 +7,9 @@ const defaultForm = {
   patientName: '',
   patientAge: '',
   patientSex: '',
-  patientStatus: '',
+  procedureName: '',
+  status: '',
   modality: '',
-  procedureRef: '',
   procedureDate: '',
   procedureTime: '',
   diagnosis: '',
@@ -86,9 +86,11 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     if (initialData) {
       setForm(initialData);
       setIsEditing(false);
+      setProcedureSearch('');
     } else {
       setForm({ ...defaultForm, procedureDate: getCurrentDate(), procedureTime: getCurrentTime() });
       setIsEditing(true);
+      setProcedureSearch('');
     }
   }, [initialData]);
 
@@ -152,25 +154,18 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
   const handleProcedureSelect = (proc: any) => {
     setForm((f: any) => ({
       ...f,
-      procedureRef: proc.proID,
-      patientStatus: proc.patientStatus,
-      modality: proc.modality,
+      procedureName: proc.procedureName,
       procedureCost: proc.procedureCost ?? '',
     }));
     setDropdownOpen(false);
     setProcedureSearch('');
   };
 
+  // Sort procedures alphabetically by procedureName for the dropdown
+  const sortedProcedures = [...procedures].sort((a, b) => a.procedureName.localeCompare(b.procedureName));
   const filteredProcedures = procedureSearch
-    ? procedures.filter((p: any) => {
-        const search = procedureSearch.toLowerCase();
-        return (
-          p.procedureName.toLowerCase().includes(search) ||
-          p.modality.toLowerCase().includes(search) ||
-          (p.patientStatus || '').toLowerCase().includes(search)
-        );
-      })
-    : procedures.slice(0, 5);
+    ? sortedProcedures.filter((p: any) => p.procedureName.toLowerCase().includes(procedureSearch.toLowerCase()))
+    : sortedProcedures.slice(0, 20);
 
   const selectedProcedure = Array.isArray(procedures) && form ? procedures.find(p => p.proID === Number(form.procedureRef)) : undefined;
 
@@ -183,9 +178,9 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
       'patientName',
       'patientAge',
       'patientSex',
-      'patientStatus',
+      'procedureName',
+      'status',
       'modality',
-      'procedureRef',
       'procedureDate',
       'procedureTime',
       'doneBy',
@@ -198,13 +193,28 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
       }
     }
     setError('');
-    onSave(form);
+    // Ensure only shortform is saved for status and modality
+    const statusShort = STATUS_OPTIONS.find(opt => opt.value === form.status) ? form.status : STATUS_OPTIONS[0].value;
+    const modalityShort = MODALITY_OPTIONS.find(opt => opt.value === form.modality) ? form.modality : MODALITY_OPTIONS[0].value;
+    onSave({ ...form, status: statusShort, modality: modalityShort });
   };
 
   const idToDelete = initialData?.procedureID || form?.procedureID;
 
   const irPhysicians = physicians.filter((p: any) => (p.role || '').toLowerCase() === 'ir');
   const selectedDoneBy = irPhysicians.filter((phy: any) => (form?.doneBy || []).includes(phy.physicianID));
+
+  const STATUS_OPTIONS = [
+    { value: 'IP', label: 'Inpatient (IP)' },
+    { value: 'OP', label: 'Outpatient (OP)' },
+  ];
+  const MODALITY_OPTIONS = [
+    { value: 'USG', label: 'Ultrasound (USG)' },
+    { value: 'CT', label: 'Computed Tomography (CT)' },
+    { value: 'OT', label: 'Operating Theater (OT)' },
+    { value: 'XF', label: 'X-ray Fluoroscopy (XF)' },
+    { value: 'DSA', label: 'Digital Subtraction Angiography (DSA)' },
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -346,32 +356,31 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                   <input
                     type="text"
                     placeholder="Search procedure..."
-                    value={procedureSearch || (selectedProcedure ? selectedProcedure.procedureName : '')}
-                    onChange={e => { setProcedureSearch(e.target.value); setDropdownOpen(true); }}
-                    onFocus={() => setDropdownOpen(true)}
+                    value={procedureSearch !== '' ? procedureSearch : form.procedureName || ''}
+                    onChange={e => {
+                      setProcedureSearch(e.target.value);
+                      setForm((f: any) => ({ ...f, procedureName: e.target.value }));
+                      if (!(viewOnly && !isEditing)) setDropdownOpen(true);
+                    }}
+                    onFocus={() => { if (!(viewOnly && !isEditing)) setDropdownOpen(true); }}
                     className="form-input"
                     autoComplete="off"
+                    readOnly={viewOnly && !isEditing}
                   />
-                  {dropdownOpen && filteredProcedures.length > 0 && (
+                  {dropdownOpen && !viewOnly && filteredProcedures.length > 0 && (
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-60 overflow-y-auto">
-                      <div className="sticky top-0 bg-gray-50 p-2 border-b text-xs font-medium text-gray-600">
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>Status</div>
-                          <div>Modality</div>
-                          <div>Procedure Name</div>
-                        </div>
-                      </div>
                       {filteredProcedures.map((p: any) => (
                         <div
                           key={p.proID}
-                          className={`p-2 cursor-pointer hover:bg-gray-50 ${form?.procedureRef == p.proID ? 'selected-accent' : ''}`}
-                          onClick={() => handleProcedureSelect(p)}
+                          className={`p-2 cursor-pointer hover:bg-gray-50 ${form?.procedureName === p.procedureName ? 'selected-accent' : ''}`}
+                          style={{ paddingLeft: '8px', paddingTop: '2px', paddingBottom: '2px', cursor: 'pointer' }}
+                          onClick={() => {
+                            setForm((f: any) => ({ ...f, procedureName: p.procedureName, procedureCost: p.procedureCost ?? '' }));
+                            setDropdownOpen(false);
+                            setProcedureSearch('');
+                          }}
                         >
-                          <div className="grid grid-cols-3 gap-2 text-sm">
-                            <div className="font-medium">{p.patientStatus}</div>
-                            <div>{p.modality}</div>
-                            <div className="font-medium">{p.procedureName}</div>
-                          </div>
+                          <div className="text-sm font-medium">{p.procedureName}</div>
                         </div>
                       ))}
                     </div>
@@ -380,28 +389,52 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
               </div>
               
               <div className="grid grid-cols-2 gap-4">
+                {/* Status field */}
                 <div className="form-group">
                   <label className="form-label">Status</label>
-                  <input 
-                    name="patientStatus" 
-                    value={form?.patientStatus || ''} 
-                    readOnly 
-                    className="form-input bg-gray-50"
-                  />
+                  {(viewOnly && !isEditing) ? (
+                    <div className="form-input bg-gray-50">{form.status}</div>
+                  ) : (
+                    <select
+                      name="status"
+                      value={form.status || ''}
+                      onChange={handleChange}
+                      required
+                      className="form-select"
+                      disabled={viewOnly && !isEditing}
+                    >
+                      <option value="">Select Status</option>
+                      {STATUS_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.value} - {opt.label.replace(/\s*\(.+\)/, '')}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                
+                {/* Modality field */}
                 <div className="form-group">
                   <label className="form-label">Modality</label>
-                  <input 
-                    name="modality" 
-                    value={form?.modality || ''} 
-                    readOnly 
-                    className="form-input bg-gray-50"
-                  />
+                  {(viewOnly && !isEditing) ? (
+                    <div className="form-input bg-gray-50">{form.modality}</div>
+                  ) : (
+                    <select
+                      name="modality"
+                      value={form.modality || ''}
+                      onChange={handleChange}
+                      required
+                      className="form-select"
+                      disabled={viewOnly && !isEditing}
+                    >
+                      <option value="">Select Modality</option>
+                      {MODALITY_OPTIONS.map(opt => {
+                        const match = opt.label.match(/^([^(]+)\(([^)]+)\)$/);
+                        const expanded = match ? match[1].trim() : opt.label;
+                        return (
+                          <option key={opt.value} value={opt.value}>{opt.value} - {expanded}</option>
+                        );
+                      })}
+                    </select>
+                  )}
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="form-label">Date</label>
                   <div className="flex gap-2 items-center">

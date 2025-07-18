@@ -43,6 +43,14 @@ const SEARCH_FIELDS = [
   { key: 'followUp', label: 'Followup' }
 ];
 
+const MODALITY_OPTIONS = [
+  { value: 'USG', label: 'USG' },
+  { value: 'CT', label: 'CT' },
+  { value: 'OT', label: 'OT' },
+  { value: 'XF', label: 'XF' },
+  { value: 'DSA', label: 'DSA' },
+];
+
 const FilterBar: React.FC<FilterBarProps> = ({
   searchText,
   setSearchText,
@@ -131,8 +139,8 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 style={{ minWidth: 120 }}
               >
                 <option value="">All Modalities</option>
-                {modalities.map(m => (
-                  <option key={m} value={m}>{m}</option>
+                {MODALITY_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
               {modalityFilter && (

@@ -51,8 +51,9 @@ model ProcedureLog {
   patientName         String
   patientAge          Int
   patientSex          String
-  procedure           Procedure  @relation(fields: [procedureRef], references: [proID])
-  procedureRef        Int
+  procedureName       String   @default("DSA")
+  status              String   @default("IP")
+  modality            String   @default("DSA")
   procedureDate       DateTime
   procedureTime       String
   doneBy              ProcedurePhysicians[]
@@ -94,10 +95,7 @@ model ProcedurePhysicians {
 
 model Procedure {
   proID         Int      @id @default(autoincrement())
-  patientStatus String
-  modality      String
   procedureName String
-  procedureLogs ProcedureLog[]
   procedureCost Float?
   timestamp     DateTime @default(now())
 }

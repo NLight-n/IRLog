@@ -250,9 +250,9 @@ function ProcedureLogPage() {
       });
       if (!matches) return false;
     }
-    if (statusFilter && p.procedure?.patientStatus !== statusFilter) return false;
-    if (modalityFilter && p.procedure?.modality !== modalityFilter) return false;
-    if (procedureNameFilter && !(p.procedure?.procedureName || '').toLowerCase().includes(procedureNameFilter.toLowerCase())) return false;
+    if (statusFilter && p.status !== statusFilter) return false;
+    if (modalityFilter && p.modality !== modalityFilter) return false;
+    if (procedureNameFilter && !(p.procedureName || '').toLowerCase().includes(procedureNameFilter.toLowerCase())) return false;
     // Date filter logic
     if (dateFilter !== 'all') {
       const date = new Date(p.procedureDate);
@@ -381,9 +381,9 @@ function ProcedureLogPage() {
   const handleEdit = (row: any) => {
     setEditData({
       ...row,
-      patientStatus: row.procedure?.patientStatus || '',
-      modality: row.procedure?.modality || '',
-      procedureRef: row.procedure?.proID || '',
+      patientStatus: row.status || '',
+      modality: row.modality || '',
+      procedureRef: row.procedureID || '',
       doneBy: row.doneBy?.map((d: any) => d.physicianID) || [],
       refPhysician: row.refPhysician || '',
     });
@@ -423,9 +423,9 @@ function ProcedureLogPage() {
   const handleShowDetails = (row: any) => {
     setDetailsData({
       ...row,
-      patientStatus: row.procedure?.patientStatus || '',
-      modality: row.procedure?.modality || '',
-      procedureRef: row.procedure?.proID || '',
+      patientStatus: row.status || '',
+      modality: row.modality || '',
+      procedureRef: row.procedureID || '',
       doneBy: row.doneBy?.map((d: any) => d.physicianID) || [],
       refPhysician: row.refPhysician || '',
     });
@@ -549,17 +549,17 @@ function ProcedureLogPage() {
     patientAgeSex: { label: 'Age/Sex', render: p => `${p.patientAge}/${p.patientSex}` },
     patientStatus: { label: 'Status', render: p => (
       <span className={`px-2 py-1 rounded text-xs font-medium ${
-        p.procedure?.patientStatus === 'IP' || p.procedure?.patientStatus === 'Inpatient'
+        p.status === 'IP' || p.status === 'Inpatient'
           ? 'bg-light-maroon text-dark-maroon'
-          : p.procedure?.patientStatus === 'OP' || p.procedure?.patientStatus === 'Outpatient'
+          : p.status === 'OP' || p.status === 'Outpatient'
             ? 'bg-green-100 text-green-800'
             : 'bg-gray-100 text-gray-800'
       }`}>
-        {p.procedure?.patientStatus}
+        {p.status}
       </span>
     ) },
-    modality: { label: 'Modality', render: p => p.procedure?.modality },
-    procedureName: { label: 'Procedure Name', render: p => <span className="font-medium">{p.procedure?.procedureName}</span> },
+    modality: { label: 'Modality', render: p => p.modality },
+    procedureName: { label: 'Procedure Name', render: p => <span className="font-medium">{p.procedureName}</span> },
     procedureDate: { label: 'Date', render: p => formatDate(p.procedureDate) },
     procedureTime: { label: 'Time', render: p => formatTime(p.procedureTime) },
     doneBy: { label: 'Done By', render: p => p.doneBy?.map((d: any) => d.physician?.name || '').join(', ') },

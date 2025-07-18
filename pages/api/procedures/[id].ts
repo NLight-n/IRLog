@@ -20,7 +20,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: {
         doneBy: true,
         refPhysicianObj: true,
-        procedure: true,
         createdBy: true,
         updatedBy: true,
       },
@@ -53,7 +52,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const currentData = await prisma.procedureLog.findUnique({
         where: { procedureID },
         include: {
-          procedure: true,
           doneBy: { include: { physician: true } },
           refPhysicianObj: true,
         },
@@ -61,32 +59,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const data = req.body;
 
+      // Debug log: print incoming data before update
+      console.log('PATCH /api/procedures/[id] incoming data:', data);
+
       // Remove fields that shouldn't be updated directly
       delete data.procedureID;
       delete data.patientStatus;
-      delete data.modality;
+      // do NOT delete data.modality; it is a valid field now
       delete data.createdAt;
       delete data.updatedAt;
       delete data.createdById;
       delete data.updatedById;
       delete data.procedure;
       delete data.refPhysicianObj;
-      // procedureRef is allowed, but must be a number
+      delete data.procedureRef;
 
       // Convert types
       if (typeof data.patientAge === 'string') data.patientAge = parseInt(data.patientAge) || null;
-      if (typeof data.procedureRef === 'string') data.procedureRef = parseInt(data.procedureRef) || null;
       if (typeof data.procedureCost === 'string') data.procedureCost = parseFloat(data.procedureCost) || null;
       if (typeof data.refPhysician === 'string') data.refPhysician = parseInt(data.refPhysician) || null;
 
       // Combine date and time into ISO string for procedureDate
       if (data.procedureDate && data.procedureTime) {
-        // If procedureDate is already an ISO string, extract date part
         let datePart = data.procedureDate;
         if (typeof datePart === 'string' && datePart.length > 10) {
           datePart = datePart.slice(0, 10);
         }
-        // Only combine if both are valid
         if (/^\d{4}-\d{2}-\d{2}$/.test(datePart) && /^\d{2}:\d{2}$/.test(data.procedureTime)) {
           data.procedureDate = new Date(`${datePart}T${data.procedureTime}:00`).toISOString();
         }
@@ -96,32 +94,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let doneByUpdate = undefined;
       if (Array.isArray(data.doneBy)) {
         doneByUpdate = {
-          deleteMany: {}, // remove all existing
+          deleteMany: {},
           create: data.doneBy.map((physicianID: number) => ({ physicianID })),
         };
       }
       delete data.doneBy;
 
-      // Map procedureRef and refPhysician to relation updates
-      const { procedureRef, refPhysician, ...rest } = data;
-
       // Remove relation objects that should not be updated directly
-      delete rest.createdBy;
-      delete rest.createdByObj;
-      delete rest.updatedBy;
-      delete rest.updatedByObj;
+      delete data.createdBy;
+      delete data.createdByObj;
+      delete data.updatedBy;
+      delete data.updatedByObj;
+      delete data.refPhysician; // Remove refPhysician before update
 
       const updated = await prisma.procedureLog.update({
         where: { procedureID },
         data: {
-          ...rest,
-          ...(procedureRef ? { procedure: { connect: { proID: procedureRef } } } : {}),
-          ...(refPhysician ? { refPhysicianObj: { connect: { physicianID: refPhysician } } } : {}),
+          ...data,
+          ...(data.refPhysician ? { refPhysicianObj: { connect: { physicianID: data.refPhysician } } } : {}),
           ...(doneByUpdate ? { doneBy: doneByUpdate } : {}),
           updatedBy: { connect: { userID: userId } },
         },
         include: {
-          procedure: true,
           doneBy: { include: { physician: true } },
           refPhysicianObj: true,
         },
@@ -145,7 +139,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const currentData = await prisma.procedureLog.findUnique({
         where: { procedureID },
         include: {
-          procedure: true,
           doneBy: { include: { physician: true } },
           refPhysicianObj: true,
         },
