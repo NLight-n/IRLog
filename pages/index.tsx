@@ -39,7 +39,7 @@ function ProcedureLogPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [modalityFilter, setModalityFilter] = useState('');
   const [procedureNameFilter, setProcedureNameFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('last7');
+  const [dateFilter, setDateFilter] = useState('currentMonth');
   const [customDateRange, setCustomDateRange] = useState({ from: '', to: '' });
   const [refPhysicianFilter, setRefPhysicianFilter] = useState('');
   const [doneByFilter, setDoneByFilter] = useState('');
@@ -359,7 +359,7 @@ function ProcedureLogPage() {
     setStatusFilter('');
     setModalityFilter('');
     setProcedureNameFilter('');
-    setDateFilter('all');
+    setDateFilter('currentMonth');
     setCustomDateRange({ from: '', to: '' });
     setRefPhysicianFilter('');
     setDoneByFilter('');

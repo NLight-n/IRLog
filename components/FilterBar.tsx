@@ -91,12 +91,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
   };
 
   React.useEffect(() => {
-    if (!dateFilter) setDateFilter('last7');
+    if (!dateFilter) setDateFilter('currentMonth');
   }, [dateFilter, setDateFilter]);
 
   const handleClearAllFilters = () => {
     clearAllFilters();
-    setDateFilter('last7');
+    setDateFilter('currentMonth');
   };
 
   return (
@@ -207,9 +207,9 @@ const FilterBar: React.FC<FilterBarProps> = ({
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
-              {dateFilter !== 'last7' && (
+              {dateFilter !== 'currentMonth' && (
                 <button
-                  onClick={() => { setDateFilter('last7'); setCustomDateRange({ from: '', to: '' }); }}
+                  onClick={() => { setDateFilter('currentMonth'); setCustomDateRange({ from: '', to: '' }); }}
                   style={{ marginLeft: -24, background: 'none', border: 'none', cursor: 'pointer', color: accentColor }}
                   title="Clear Date"
                   type="button"

@@ -53,6 +53,9 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
   const filteredRefPhysicians = refPhysicianSearch
     ? referrerPhysicians.filter((p: any) => p.name.toLowerCase().includes(refPhysicianSearch.toLowerCase()))
     : referrerPhysicians;
+  const [procedureDropdownIndex, setProcedureDropdownIndex] = useState(-1);
+  const [doneByDropdownIndex, setDoneByDropdownIndex] = useState(-1);
+  const [refPhysicianDropdownIndex, setRefPhysicianDropdownIndex] = useState(-1);
 
   function formatDate(dateStr: string) {
     const date = new Date(dateStr);
@@ -87,10 +90,12 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
       setForm(initialData);
       setIsEditing(false);
       setProcedureSearch('');
+      setRefPhysicianSearch('');
     } else {
       setForm({ ...defaultForm, procedureDate: getCurrentDate(), procedureTime: getCurrentTime() });
       setIsEditing(true);
       setProcedureSearch('');
+      setRefPhysicianSearch('');
     }
   }, [initialData]);
 
@@ -142,8 +147,6 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
-
-  if (!open) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     if (viewOnly && !isEditing) return;
@@ -198,6 +201,39 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     const modalityShort = MODALITY_OPTIONS.find(opt => opt.value === form.modality) ? form.modality : MODALITY_OPTIONS[0].value;
     onSave({ ...form, status: statusShort, modality: modalityShort });
   };
+
+  useEffect(() => {
+    if (!open || (viewOnly && !isEditing && initialData)) return;
+
+    function handleShortcut(e: KeyboardEvent) {
+      // Save: Ctrl+S or Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        // Call your save handler
+        // We need a synthetic event for handleSave
+        if (typeof handleSave === 'function') {
+          handleSave({ preventDefault: () => {} } as any);
+        }
+      }
+      // Cancel: Esc
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (typeof onClose === 'function') onClose();
+      }
+      // Clear Form: Ctrl+Shift+C or Cmd+Shift+C (only for new entry)
+      if (!initialData && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        setForm({ ...defaultForm, procedureDate: '', procedureTime: '', refPhysician: '' });
+        setRefPhysicianSearch('');
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, viewOnly, isEditing, initialData, handleSave, onClose]);
+
+  if (!open) return null;
 
   const idToDelete = initialData?.procedureID || form?.procedureID;
 
@@ -361,24 +397,45 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                       setProcedureSearch(e.target.value);
                       setForm((f: any) => ({ ...f, procedureName: e.target.value }));
                       if (!(viewOnly && !isEditing)) setDropdownOpen(true);
+                      setProcedureDropdownIndex(0);
                     }}
                     onFocus={() => { if (!(viewOnly && !isEditing)) setDropdownOpen(true); }}
                     className="form-input"
                     autoComplete="off"
                     readOnly={viewOnly && !isEditing}
+                    onKeyDown={e => {
+                      if (!dropdownOpen || viewOnly) return;
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setProcedureDropdownIndex(i => Math.min(i + 1, filteredProcedures.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setProcedureDropdownIndex(i => Math.max(i - 1, 0));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (filteredProcedures[procedureDropdownIndex]) {
+                          setForm((f: any) => ({ ...f, procedureName: filteredProcedures[procedureDropdownIndex].procedureName, procedureCost: filteredProcedures[procedureDropdownIndex].procedureCost ?? '' }));
+                          setDropdownOpen(false);
+                          setProcedureSearch('');
+                        }
+                      } else if (e.key === 'Escape' || e.key === 'Tab') {
+                        setDropdownOpen(false);
+                      }
+                    }}
                   />
                   {dropdownOpen && !viewOnly && filteredProcedures.length > 0 && (
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-60 overflow-y-auto">
-                      {filteredProcedures.map((p: any) => (
+                      {filteredProcedures.map((p: any, idx: number) => (
                         <div
                           key={p.proID}
-                          className={`p-2 cursor-pointer hover:bg-gray-50 ${form?.procedureName === p.procedureName ? 'selected-accent' : ''}`}
+                          className={`p-2 cursor-pointer hover:bg-gray-50 ${form?.procedureName === p.procedureName ? 'selected-accent' : ''} ${procedureDropdownIndex === idx ? 'selected-accent' : ''}`}
                           style={{ paddingLeft: '8px', paddingTop: '2px', paddingBottom: '2px', cursor: 'pointer' }}
                           onClick={() => {
                             setForm((f: any) => ({ ...f, procedureName: p.procedureName, procedureCost: p.procedureCost ?? '' }));
                             setDropdownOpen(false);
                             setProcedureSearch('');
                           }}
+                          onMouseEnter={() => setProcedureDropdownIndex(idx)}
                         >
                           <div className="text-sm font-medium">{p.procedureName}</div>
                         </div>
@@ -494,9 +551,37 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                     className="form-input cursor-pointer min-h-[2.5rem] flex flex-wrap items-center gap-1"
                     tabIndex={0}
                     onClick={() => setShowDoneByDropdown(true)}
+                    onFocus={() => setShowDoneByDropdown(true)}
                     onBlur={() => setTimeout(() => setShowDoneByDropdown(false), 200)}
                     ref={doneByInputRef}
                     style={{ minHeight: '2.5rem' }}
+                    onKeyDown={e => {
+                      if (!showDoneByDropdown) return;
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setDoneByDropdownIndex(i => Math.min(i + 1, irPhysicians.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setDoneByDropdownIndex(i => Math.max(i - 1, 0));
+                      } else if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (irPhysicians[doneByDropdownIndex]) {
+                          setForm((f: any) => {
+                            const ids = new Set(f.doneBy || []);
+                            if (ids.has(irPhysicians[doneByDropdownIndex].physicianID)) {
+                              ids.delete(irPhysicians[doneByDropdownIndex].physicianID);
+                            } else {
+                              ids.add(irPhysicians[doneByDropdownIndex].physicianID);
+                            }
+                            return { ...f, doneBy: Array.from(ids) };
+                          });
+                        }
+                      } else if ((e.key === 'Enter' || e.key === ' ') && !showDoneByDropdown) {
+                        setShowDoneByDropdown(true);
+                      } else if (e.key === 'Escape' || e.key === 'Tab') {
+                        setShowDoneByDropdown(false);
+                      }
+                    }}
                   >
                     {selectedDoneBy.length === 0 && <span className="text-gray-400">Select IR physicians...</span>}
                     {selectedDoneBy.map((phy: any) => (
@@ -518,12 +603,12 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                       {irPhysicians.length === 0 && (
                         <div className="px-4 py-2 text-gray-500">No IR physicians</div>
                       )}
-                      {irPhysicians.map((phy: any) => {
+                      {irPhysicians.map((phy: any, idx: number) => {
                         const selected = (form?.doneBy || []).includes(phy.physicianID);
                         return (
                           <div
                             key={phy.physicianID}
-                            className={`px-4 py-2 cursor-pointer flex items-center ${selected ? 'selected-accent font-bold' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100'}`}
+                            className={`px-4 py-2 cursor-pointer flex items-center ${selected ? 'selected-accent font-bold' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100'} ${doneByDropdownIndex === idx ? 'selected-accent' : ''}`}
                             style={{ cursor: 'pointer' }}
                             onMouseDown={() => {
                               setForm((f: any) => {
@@ -536,6 +621,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                                 return { ...f, doneBy: Array.from(ids) };
                               });
                             }}
+                            onMouseEnter={() => setDoneByDropdownIndex(idx)}
                           >
                             <input type="checkbox" checked={selected} readOnly className="mr-2" />
                             {phy.name}
@@ -567,27 +653,55 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                     onChange={e => {
                       setRefPhysicianSearch(e.target.value);
                       setShowRefPhysicianDropdown(true);
+                      setRefPhysicianDropdownIndex(0);
                     }}
                     onBlur={() => setTimeout(() => setShowRefPhysicianDropdown(false), 200)}
                     autoComplete="off"
+                    onKeyDown={e => {
+                      if (!showRefPhysicianDropdown) return;
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setRefPhysicianDropdownIndex(i => Math.min(i + 1, filteredRefPhysicians.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setRefPhysicianDropdownIndex(i => Math.max(i - 1, 0));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (filteredRefPhysicians[refPhysicianDropdownIndex]) {
+                          setForm((f: any) => ({ ...f, refPhysician: filteredRefPhysicians[refPhysicianDropdownIndex].physicianID }));
+                          setRefPhysicianSearch(filteredRefPhysicians[refPhysicianDropdownIndex].name);
+                          setShowRefPhysicianDropdown(false);
+                        }
+                      } else if (e.key === 'Escape' || e.key === 'Tab') {
+                        setShowRefPhysicianDropdown(false);
+                      }
+                    }}
                   />
                   {showRefPhysicianDropdown && (
                     <div className="absolute z-50 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded shadow max-h-60 overflow-y-auto w-full mt-1">
                       {filteredRefPhysicians.length === 0 && (
                         <div className="px-4 py-2 text-gray-500">No results</div>
                       )}
-                      {filteredRefPhysicians.map((phy: any) => (
+                      {filteredRefPhysicians.length > 0 && (
+                        <div className="grid grid-cols-2 font-semibold text-xs px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                          <div>Name</div>
+                          <div>Department</div>
+                        </div>
+                      )}
+                      {filteredRefPhysicians.map((phy: any, idx: number) => (
                         <div
                           key={phy.physicianID}
-                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                          style={{ cursor: 'pointer' }}
+                          className={`grid grid-cols-2 px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${refPhysicianDropdownIndex === idx ? 'selected-accent' : ''}`}
+                          style={{ cursor: 'pointer', alignItems: 'center' }}
                           onMouseDown={() => {
                             setForm((f: any) => ({ ...f, refPhysician: phy.physicianID }));
                             setRefPhysicianSearch(phy.name);
                             setShowRefPhysicianDropdown(false);
                           }}
+                          onMouseEnter={() => setRefPhysicianDropdownIndex(idx)}
                         >
-                          {phy.name}
+                          <div>{phy.name}</div>
+                          <div className="text-gray-500 text-xs">{phy.department}</div>
                         </div>
                       ))}
                     </div>
