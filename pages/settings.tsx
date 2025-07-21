@@ -366,7 +366,8 @@ function PhysicianManagement() {
   }
 
   const irs = physicians.filter((p: any) => p.role === 'IR');
-  const referrers = physicians.filter((p: any) => p.role === 'Referrer');
+  // Sort referring physicians alphabetically by name
+  const referrers = physicians.filter((p: any) => p.role === 'Referrer').sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 
   return (
     <div>
@@ -629,11 +630,22 @@ function ProcedureManagement() {
   // Filter state
   const [procedureNameFilter, setProcedureNameFilter] = React.useState('');
 
-  // Filtered procedures
-  const filteredProcedures = procedures.filter((p: any) => {
-    if (procedureNameFilter && !p.procedureName.toLowerCase().includes(procedureNameFilter.toLowerCase())) return false;
-    return true;
-  });
+  // Sorting state
+  const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
+
+  // Filtered and sorted procedures
+  const filteredProcedures = procedures
+    .filter((p: any) => {
+      if (procedureNameFilter && !p.procedureName.toLowerCase().includes(procedureNameFilter.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a: any, b: any) => {
+      const aName = a.procedureName.toLowerCase();
+      const bName = b.procedureName.toLowerCase();
+      if (aName > bName) return sortDirection === 'asc' ? 1 : -1;
+      if (aName < bName) return sortDirection === 'asc' ? -1 : 1;
+      return 0;
+    });
 
   const clearFilters = () => {
     setProcedureNameFilter('');
@@ -744,7 +756,15 @@ function ProcedureManagement() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Procedure Name</th>
+                    <th
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+                    >
+                      Procedure Name
+                      <span style={{ marginLeft: 4, fontSize: 12 }}>
+                        {sortDirection === 'asc' ? '▼' : '▲'}
+                      </span>
+                    </th>
                     <th>Cost</th>
                     <th>Actions</th>
                   </tr>

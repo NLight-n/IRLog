@@ -80,13 +80,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (typeof data.refPhysician === 'string') data.refPhysician = parseInt(data.refPhysician) || null;
 
       // Combine date and time into ISO string for procedureDate
-      if (data.procedureDate && data.procedureTime) {
+      if (data.procedureDate) {
         let datePart = data.procedureDate;
         if (typeof datePart === 'string' && datePart.length > 10) {
           datePart = datePart.slice(0, 10);
         }
-        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart) && /^\d{2}:\d{2}$/.test(data.procedureTime)) {
+        if (data.procedureTime && /^\d{4}-\d{2}-\d{2}$/.test(datePart) && /^\d{2}:\d{2}$/.test(data.procedureTime)) {
           data.procedureDate = new Date(`${datePart}T${data.procedureTime}:00`).toISOString();
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          // If only date is provided, save as midnight UTC
+          data.procedureDate = new Date(`${datePart}T00:00:00.000Z`).toISOString();
         }
       }
 

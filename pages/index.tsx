@@ -72,16 +72,10 @@ function ProcedureLogPage() {
   const [navbarHeight, setNavbarHeight] = useState(0);
 
   function formatDate(dateStr: string) {
-    const date = new Date(dateStr);
-    if (dateFormat === 'MM/DD/YYYY') return date.toLocaleDateString('en-US');
-    if (dateFormat === 'YYYY-MM-DD') return date.toISOString().slice(0, 10);
-    if (dateFormat === 'DD-MM-YYYY') {
-      const d = date;
-      return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
-    }
-    // Default: DD/MM/YYYY
-    const d = date;
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    if (!dateStr) return '';
+    // Always parse as UTC and display only the date part
+    const d = new Date(dateStr);
+    return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
   }
 
   function formatTime(timeStr: string) {

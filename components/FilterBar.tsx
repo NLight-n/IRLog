@@ -37,7 +37,7 @@ interface FilterBarProps {
 const SEARCH_FIELDS = [
   { key: 'patientID', label: 'Patient ID' },
   { key: 'patientName', label: 'Name' },
-  { key: 'diagnosis', label: 'Reason' },
+  { key: 'diagnosis', label: 'Diagnosis' },
   { key: 'procedureName', label: 'Procedure Name' },
   { key: 'notes', label: 'Notes' },
   { key: 'followUp', label: 'Followup' }
@@ -98,6 +98,9 @@ const FilterBar: React.FC<FilterBarProps> = ({
     clearAllFilters();
     setDateFilter('currentMonth');
   };
+
+  // Sort referringPhysicians alphabetically by name for the dropdown
+  const sortedReferringPhysicians = [...referringPhysicians].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   return (
     <>
@@ -179,22 +182,6 @@ const FilterBar: React.FC<FilterBarProps> = ({
                   </svg>
                 </button>
               )}
-              {procedureNameFilter && procedureNames.length > 0 && (
-                <div style={{ position: 'absolute', zIndex: 10, background: '#fff', border: '1px solid #ddd', width: '100%', maxHeight: 180, overflowY: 'auto', borderRadius: 4, top: '100%' }}>
-                  {procedureNames.filter(p => p.toLowerCase().includes(procedureNameFilter.toLowerCase())).slice(0, 10).map(p => (
-                    <div
-                      key={p}
-                      style={{ padding: '6px 12px', cursor: 'pointer' }}
-                      onMouseDown={() => setProcedureNameFilter(p)}
-                    >
-                      {p}
-                    </div>
-                  ))}
-                  {procedureNames.filter(p => p.toLowerCase().includes(procedureNameFilter.toLowerCase())).length === 0 && (
-                    <div style={{ padding: '6px 12px', color: '#888' }}>No matches</div>
-                  )}
-                </div>
-              )}
             </div>
             <div style={{ position: 'relative' }} className="flex items-center min-w-0 w-full sm:w-auto">
               <select
@@ -246,7 +233,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 style={{ minWidth: 140 }}
               >
                 <option value="">All Referring Physicians</option>
-                {referringPhysicians.map(p => <option key={p.physicianID} value={p.physicianID}>{p.name}</option>)}
+                {sortedReferringPhysicians.map(p => <option key={p.physicianID} value={p.physicianID}>{p.name}</option>)}
               </select>
               {refPhysicianFilter && (
                 <button
