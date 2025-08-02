@@ -108,13 +108,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       delete data.createdByObj;
       delete data.updatedBy;
       delete data.updatedByObj;
-      delete data.refPhysician; // Remove refPhysician before update
+
+      const refPhysicianId = data.refPhysician;
+      delete data.refPhysician;
 
       const updated = await prisma.procedureLog.update({
         where: { procedureID },
         data: {
           ...data,
-          ...(data.refPhysician ? { refPhysicianObj: { connect: { physicianID: data.refPhysician } } } : {}),
+          ...(refPhysicianId ? { refPhysicianObj: { connect: { physicianID: refPhysicianId } } } : {}),
           ...(doneByUpdate ? { doneBy: doneByUpdate } : {}),
           updatedBy: { connect: { userID: userId } },
         },

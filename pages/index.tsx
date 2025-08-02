@@ -553,7 +553,7 @@ function ProcedureLogPage() {
       </span>
     ) },
     modality: { label: 'Modality', render: p => p.modality },
-    procedureName: { label: 'Procedure Name', render: p => <span className="font-medium">{p.procedureName}</span> },
+    procedureName: { label: 'Procedure Name', render: p => <span className="font-medium" title={p.procedureName}>{p.procedureName}</span> },
     procedureDate: { label: 'Date', render: p => formatDate(p.procedureDate) },
     procedureTime: { label: 'Time', render: p => formatTime(p.procedureTime) },
     doneBy: { label: 'Done By', render: p => p.doneBy?.map((d: any) => d.physician?.name || '').join(', ') },
@@ -564,7 +564,7 @@ function ProcedureLogPage() {
       return <span className="max-w-xs truncate" title={notes}>{notes}</span>;
     } },
     notes: { label: 'Notes', render: p => p.notes },
-    followUp: { label: 'Follow-up', render: p => p.followUp },
+    followUp: { label: 'Follow-up', render: p => <span title={p.followUp}>{p.followUp}</span> },
     procedureCost: { label: 'Cost', render: p => p.procedureCost != null && p.procedureCost !== '' ? `${currency}${p.procedureCost}` : '-' },
   };
 
@@ -679,12 +679,16 @@ function ProcedureLogPage() {
                         {columns.filter((col: any) => col && col.visible).map((col: any) => (
                           <th
                             key={col.key}
-                            style={
-                              col.key === 'procedureNotes' ? { maxWidth: 220 } :
-                              col.key === 'followUp' ? { maxWidth: 120 } :
-                              col.key === 'doneBy' ? { maxWidth: 220 } :
-                              { cursor: 'pointer', userSelect: 'none' }
-                            }
+                            style={{
+                              cursor: 'pointer', 
+                              userSelect: 'none',
+                              ...((col.key === 'procedureName' || col.key === 'procedureNotes' || col.key === 'doneBy' || col.key === 'diagnosis') && { maxWidth: 220 }),
+                              ...(col.key === 'followUp' && { maxWidth: 180 }),
+                              ...(col.key === 'patientID' && { maxWidth: 80 }),
+                              ...(col.key === 'patientAgeSex' && { maxWidth: 60 }),
+                              ...(col.key === 'modality' && { maxWidth: 80 }),
+                              ...(col.key === 'patientStatus' && { maxWidth: 50 }),
+                            }}
                             onClick={() => {
                               if (sortColumn === col.key) {
                                 setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -717,12 +721,13 @@ function ProcedureLogPage() {
                           {columns.filter((col: any) => col && col.visible).map((col: any) => (
                             <td
                               key={col.key}
-                              style={
-                                col.key === 'procedureNotes' ? { maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } :
-                                col.key === 'followUp' ? { maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } :
-                                col.key === 'doneBy' ? { maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } :
-                                undefined
-                              }
+                              style={{
+                                ...((col.key === 'procedureName' || col.key === 'procedureNotes' || col.key === 'doneBy' || col.key === 'diagnosis') && { maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+                                ...(col.key === 'followUp' && { maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+                                ...(col.key === 'patientID' && { maxWidth: 80 }),
+                                ...(col.key === 'patientAgeSex' && { maxWidth: 80 }),
+                                ...((col.key === 'patientStatus' || col.key === 'modality') && { maxWidth: 60 }),
+                              }}
                             >
                               {columnMap[col.key]?.render(p)}
                             </td>
