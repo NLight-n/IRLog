@@ -440,7 +440,7 @@ function ProcedureLogPage() {
       if (typeof val === 'object' && val.props && val.props.children) return extractText(val.props.children);
       return '';
     }
-    const exportData = filtered.map(row => {
+    const exportData = sorted.map(row => {
       const obj: any = {};
       visibleColumns.forEach((col: any) => {
         const renderFn = columnMap[col.key]?.render;
