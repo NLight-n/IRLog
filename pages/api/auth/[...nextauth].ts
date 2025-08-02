@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import type { AuthOptions, Session, User } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import { SessionStrategy } from 'next-auth';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 const prisma = new PrismaClient();
 
@@ -111,8 +112,12 @@ export const authOptions: AuthOptions = {
   },
 };
 
-export default NextAuth({
-  ...authOptions,
-  // @ts-expect-error
-  trustHost: true,
-}); 
+import { NextApiRequest, NextApiResponse } from 'next';
+
+export default async function auth(req: NextApiRequest, res: NextApiResponse) {
+  const proto = req.headers['x-forwarded-proto'] || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  process.env.NEXTAUTH_URL = `${proto}://${host}`;
+
+  return await NextAuth(req, res, authOptions);
+} 
