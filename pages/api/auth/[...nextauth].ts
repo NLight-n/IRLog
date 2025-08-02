@@ -10,6 +10,7 @@ import { SessionStrategy } from 'next-auth';
 const prisma = new PrismaClient();
 
 export const authOptions: AuthOptions = {
+  trustHost: true,
   adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
