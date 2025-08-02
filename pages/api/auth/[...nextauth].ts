@@ -10,7 +10,6 @@ import { SessionStrategy } from 'next-auth';
 const prisma = new PrismaClient();
 
 export const authOptions: AuthOptions = {
-  trustHost: true,
   adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
@@ -112,4 +111,8 @@ export const authOptions: AuthOptions = {
   },
 };
 
-export default NextAuth(authOptions); 
+export default NextAuth({
+  ...authOptions,
+  // @ts-expect-error
+  trustHost: true,
+}); 
