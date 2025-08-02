@@ -3,7 +3,7 @@ import formidable from 'formidable';
 import fs from 'fs';
 import { minioClient, MINIO_BUCKET } from '../../../lib/storage/minio';
 import { getServerSession } from 'next-auth/next';
-import authOptions from '../auth/[...nextauth]';
+import { authOptions } from '@/lib/auth';
 
 export const config = {
   api: {

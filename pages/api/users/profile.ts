@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma/prisma';
 import { hashPassword, verifyPassword } from '../../../lib/auth/password';
 import { getServerSession } from 'next-auth/next';
-import authOptions from '../auth/[...nextauth]';
+import { authOptions } from '@/lib/auth';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);

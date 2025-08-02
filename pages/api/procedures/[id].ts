@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma/prisma';
 import { getServerSession } from 'next-auth/next';
-import authOptions from '../auth/[...nextauth]';
+import { authOptions } from '@/lib/auth';
 import { getToken } from 'next-auth/jwt';
 import { logAuditEvent } from '../../../lib/auditLogger';
 

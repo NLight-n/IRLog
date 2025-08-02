@@ -1,6 +1,6 @@
 import { minioClient, MINIO_BUCKET } from '../../../../lib/storage/minio';
 import { getServerSession } from 'next-auth/next';
-import authOptions from '../../auth/[...nextauth]';
+import { authOptions } from '@/lib/auth';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
