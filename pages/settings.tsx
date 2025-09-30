@@ -995,7 +995,14 @@ function DataLog({ navbarHeight = 0 }: { navbarHeight?: number }) {
   }
 
   const actionTypes = ['CREATE', 'UPDATE', 'DELETE'];
-  const tableNames = ['ProcedureLog', 'Procedure', 'Physician', 'User'];
+  const tableNames = ['ProcedureLog', 'Procedure', 'Physician', 'User', 'WorkItem'];
+  const tableDisplayNames: { [key: string]: string } = {
+    'ProcedureLog': 'Procedure Log',
+    'Procedure': 'Procedure',
+    'Physician': 'Physician',
+    'User': 'User',
+    'WorkItem': 'Worklist',
+  };
 
   if (!canView) {
     return (
@@ -1061,7 +1068,7 @@ function DataLog({ navbarHeight = 0 }: { navbarHeight?: number }) {
               >
                 <option value="">All Tables</option>
                 {tableNames.map(table => (
-                  <option key={table} value={table}>{table}</option>
+                  <option key={table} value={table}>{tableDisplayNames[table] || table}</option>
                 ))}
               </select>
             </div>
@@ -1157,6 +1164,7 @@ function DataLog({ navbarHeight = 0 }: { navbarHeight?: number }) {
                         const table = log.affectedTable;
                         const data = log.dataAfter || log.dataBefore || {};
                         if (table === 'ProcedureLog') return data.patientName || log.affectedRowID;
+                        if (table === 'WorkItem') return data.patientName || log.affectedRowID;
                         if (table === 'Physician') return data.name || log.affectedRowID;
                         if (table === 'Procedure') return data.procedureName || log.affectedRowID;
                         if (table === 'User') return data.username || log.affectedRowID;

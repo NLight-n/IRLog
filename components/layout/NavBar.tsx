@@ -2,6 +2,7 @@ import React, { useState, forwardRef, Ref } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'next-auth/react';
 import { FiUser, FiSun, FiMoon, FiSettings, FiLogOut, FiHome, FiBarChart2 } from 'react-icons/fi';
+import { TbLayoutKanban } from 'react-icons/tb';
 import UserProfileSidebar from '../modals/UserProfileSidebar';
 
 const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeading = 'Interventional Radiology Register', appSubheading = '' }: any, ref: Ref<HTMLElement>) {
@@ -19,6 +20,7 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
     }
   };
   const handleAnalytics = () => router.push('/analytics');
+  const handleWorklist = () => router.push('/worklist');
   const [showProfile, setShowProfile] = useState(false);
 
   return (
@@ -69,6 +71,7 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
           </button>
           <button onClick={handleHome} title="Home" className="navbar-icon-btn"><FiHome /></button>
           <button onClick={handleAnalytics} title="Analytics" className="navbar-icon-btn"><FiBarChart2 /></button>
+          <button onClick={handleWorklist} title="Worklist" className="navbar-icon-btn"><TbLayoutKanban /></button>
           <button onClick={handleSettings} title="Settings" className="navbar-icon-btn"><FiSettings /></button>
           <button onClick={() => onToggleTheme(theme === 'dark' ? 'light' : 'dark')} title="Toggle Theme" className="navbar-icon-btn">
             {theme === 'dark' ? <FiSun /> : <FiMoon />}

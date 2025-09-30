@@ -31,6 +31,8 @@ model User {
   theme        String     @default("light")
   accentColor  String?    @default("#3b82f6")
   columns      Json?
+  workItemsCreated WorkItem[] @relation("WorkItemCreatedBy")
+  workItemsUpdated WorkItem[] @relation("WorkItemUpdatedBy")
 }
 
 model Permission {
@@ -71,6 +73,26 @@ model ProcedureLog {
   createdById         Int?
   updatedBy           User?      @relation("UpdatedBy", fields: [updatedById], references: [userID])
   updatedById         Int?
+}
+
+model WorkItem {
+  id               Int       @id @default(autoincrement())
+  patientID        String
+  patientName      String
+  procedureName    String
+  modality         String?
+  stage            String    @default("Pending") // Pending | OnEvaluation | Scheduled | Done
+  dateAdded        DateTime? // when added to Pending
+  dateEvaluated    DateTime?
+  dateScheduled    DateTime?
+  dateDone         DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdBy        User?     @relation("WorkItemCreatedBy", fields: [createdById], references: [userID])
+  createdById      Int?
+  updatedBy        User?     @relation("WorkItemUpdatedBy", fields: [updatedById], references: [userID])
+  updatedById      Int?
 }
 
 model Physician {
