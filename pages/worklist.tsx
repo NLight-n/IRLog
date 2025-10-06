@@ -169,7 +169,7 @@ export default function WorklistPage() {
             match = date >= d && date <= today;
           } else if (dateFilter === 'currentMonth') {
             const from = new Date(today.getFullYear(), today.getMonth(), 1);
-            const to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             match = date >= from && date <= to;
           } else if (dateFilter === 'lastMonth') {
             const from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
