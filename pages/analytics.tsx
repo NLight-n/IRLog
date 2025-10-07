@@ -9,7 +9,7 @@ import { useRouter } from 'next/router';
 const MODALITIES = ['All', 'USG', 'CT', 'OT', 'Fluoroscopy', 'DSA'];
 
 function useAnalyticsData(type: string, params: Record<string, string | undefined>) {
-  const [data, setData] = React.useState<{ labels: string[]; data: number[] } | null>(null);
+  const [data, setData] = React.useState<{ labels: string[]; series: { name: string; data: number[] }[] } | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   React.useEffect(() => {
@@ -20,7 +20,13 @@ function useAnalyticsData(type: string, params: Record<string, string | undefine
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
     fetch(url.toString())
       .then(res => res.ok ? res.json() : Promise.reject(res.statusText))
-      .then(setData)
+      .then(d => {
+        if (d.data) {
+          setData({ labels: d.labels, series: [{ name: type, data: d.data }] });
+        } else {
+          setData(d);
+        }
+      })
       .catch(e => setError(typeof e === 'string' ? e : 'Error'))
       .finally(() => setLoading(false));
   }, [type, ...Object.values(params)]);
@@ -102,7 +108,7 @@ export default function AnalyticsPage() {
               </select>
             </div>
           </div>
-          {monthly.loading ? <div>Loading...</div> : monthly.error ? <div style={{ color: 'red' }}>{monthly.error}</div> : monthly.data && <Chart type="line" labels={monthly.data.labels} data={monthly.data.data} title="Monthly Trends" height={380} />}
+          {monthly.loading ? <div>Loading...</div> : monthly.error ? <div style={{ color: 'red' }}>{monthly.error}</div> : monthly.data && <Chart type="line" labels={monthly.data.labels} series={monthly.data.series} title="Monthly Trends" height={380} />}
         </div>
         {/* By Modality and By Referring Physician Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
@@ -120,7 +126,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             </div>
-            {modalityTrends.loading ? <div>Loading...</div> : modalityTrends.error ? <div style={{ color: 'red' }}>{modalityTrends.error}</div> : modalityTrends.data && <Chart type="bar" labels={modalityTrends.data.labels} data={modalityTrends.data.data} title="By Modality" />}
+            {modalityTrends.loading ? <div>Loading...</div> : modalityTrends.error ? <div style={{ color: 'red' }}>{modalityTrends.error}</div> : modalityTrends.data && <Chart type="bar" labels={modalityTrends.data.labels} series={modalityTrends.data.series} title="By Modality" />}
           </div>
           <div className="card p-6">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -136,7 +142,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             </div>
-            {physician.loading ? <div>Loading...</div> : physician.error ? <div style={{ color: 'red' }}>{physician.error}</div> : physician.data && <Chart type="horizontalBar" labels={physician.data.labels} data={physician.data.data} title="By Referring Physician" />}
+            {physician.loading ? <div>Loading...</div> : physician.error ? <div style={{ color: 'red' }}>{physician.error}</div> : physician.data && <Chart type="horizontalBar" labels={physician.data.labels} series={physician.data.series} title="By Referring Physician" />}
           </div>
         </div>
         {/* Yearly Trends Card */}
@@ -150,7 +156,7 @@ export default function AnalyticsPage() {
               </select>
             </div>
           </div>
-          {yearly.loading ? <div>Loading...</div> : yearly.error ? <div style={{ color: 'red' }}>{yearly.error}</div> : yearly.data && <Chart type="bar" labels={yearly.data.labels} data={yearly.data.data} title="Yearly Trends" />}
+          {yearly.loading ? <div>Loading...</div> : yearly.error ? <div style={{ color: 'red' }}>{yearly.error}</div> : yearly.data && <Chart type="bar" labels={yearly.data.labels} series={yearly.data.series} title="Yearly Trends" />}
         </div>
       </div>
     </>

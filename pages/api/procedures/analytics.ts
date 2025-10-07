@@ -37,10 +37,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (modality && modality !== 'All') {
           where.modality = modality;
         }
-        const count = await prisma.procedureLog.count({ where });
-        data.push({ label: m.label, count });
+        const result = await prisma.procedureLog.aggregate({
+          where,
+          _count: { procedureID: true },
+          _sum: { procedureCost: true },
+        });
+        data.push({
+          label: m.label,
+          count: result._count.procedureID,
+          cost: result._sum.procedureCost || 0,
+        });
       }
-      return res.json({ labels: data.map(d => d.label), data: data.map(d => d.count) });
+      return res.json({
+        labels: data.map(d => d.label),
+        series: [
+          { name: 'Cases', data: data.map(d => d.count) },
+          { name: 'Cost', data: data.map(d => d.cost) }
+        ]
+      });
     }
     if (type === 'modality') {
       // Modality trends: x-axis modality, y-axis count, filtered by date

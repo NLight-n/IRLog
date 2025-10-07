@@ -58,6 +58,19 @@ export default function WorklistPage() {
   const [dateFilter, setDateFilter] = useState('currentMonth');
   const [customDateRange, setCustomDateRange] = useState({ from: '', to: '' });
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newSearchText = e.target.value;
+    setSearchText(newSearchText);
+    if (newSearchText.trim() !== '') {
+      setDateFilter('all');
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchText('');
+    setDateFilter('currentMonth');
+  };
+
   useEffect(() => {
     if (status === 'loading') return;
     if (!session) {
@@ -382,6 +395,23 @@ export default function WorklistPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showModal, modalMode, canEdit]);
 
+  // Keyboard shortcut for clearing search
+  useEffect(() => {
+    if (showModal) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        clearSearch();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showModal]);
+
   if (status === 'loading' || loading) return (
     <div>
       <NavBar user={session?.user} onToggleTheme={setTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} />
@@ -423,20 +453,39 @@ export default function WorklistPage() {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-gray-700)' }}>
                 Search
               </label>
-              <input
-                type="text"
-                placeholder="Search by Patient ID, Name, Procedure, or Notes..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                style={{
-                  width: '250px',
-                  padding: '8px 12px',
-                  border: '1px solid var(--color-gray-300)',
-                  borderRadius: 6,
-                  background: 'var(--color-white)',
-                  color: 'var(--color-gray-900)'
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search by Patient ID, Name, Procedure, or Notes..."
+                  value={searchText}
+                  onChange={handleSearchChange}
+                  style={{
+                    width: '250px',
+                    padding: '8px 32px 8px 12px',
+                  }}
+                />
+                {searchText && (
+                  <button
+                    onClick={clearSearch}
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 20,
+                      lineHeight: 1,
+                      color: 'red',
+                      padding: 0,
+                    }}
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--color-gray-700)' }}>
@@ -444,14 +493,10 @@ export default function WorklistPage() {
               </label>
               <select
                 value={dateFilter}
+                className="form-input"
                 onChange={(e) => setDateFilter(e.target.value)}
                 style={{
                   width: '180px',
-                  padding: '8px 12px',
-                  border: '1px solid var(--color-gray-300)',
-                  borderRadius: 6,
-                  background: 'var(--color-white)',
-                  color: 'var(--color-gray-900)'
                 }}
               >
                 {DATE_FILTERS.map(filter => (
