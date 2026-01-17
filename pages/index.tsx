@@ -44,7 +44,7 @@ function ProcedureLogPage() {
   const [refPhysicianFilter, setRefPhysicianFilter] = useState('');
   const [doneByFilter, setDoneByFilter] = useState('');
   const [procedureNames, setProcedureNames] = useState<string[]>([]);
-  const [modalities, setModalities] = useState(['USG', 'CT', 'OT', 'Fluoroscopy', 'DSA']);
+  const [modalities, setModalities] = useState(['USG', 'CT', 'OT', 'XF', 'DSA']);
   const [referringPhysicians, setReferringPhysicians] = useState<Physician[]>([]);
   const [irPhysicians, setIrPhysicians] = useState<Physician[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -249,34 +249,44 @@ function ProcedureLogPage() {
     if (procedureNameFilter && !(p.procedureName || '').toLowerCase().includes(procedureNameFilter.toLowerCase())) return false;
     // Date filter logic
     if (dateFilter !== 'all') {
-      const date = new Date(p.procedureDate);
-      date.setHours(0, 0, 0, 0);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Parse procedure date as UTC date only (ignore time portion)
+      const procedureDateStr = p.procedureDate?.split('T')[0]; // Get YYYY-MM-DD part
+      if (!procedureDateStr) return false;
+      const [year, month, day] = procedureDateStr.split('-').map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+
+      // Get today in UTC
+      const now = new Date();
+      const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
       let match = false;
       if (dateFilter === 'today') {
         match = date.getTime() === today.getTime();
       } else if (dateFilter === 'yesterday') {
-        const yest = new Date(today); yest.setDate(today.getDate() - 1);
+        const yest = new Date(today);
+        yest.setUTCDate(today.getUTCDate() - 1);
         match = date.getTime() === yest.getTime();
       } else if (dateFilter === 'last7' || dateFilter === 'week') {
-        const d = new Date(today); d.setDate(today.getDate() - 6);
+        const d = new Date(today);
+        d.setUTCDate(today.getUTCDate() - 6);
         match = date >= d && date <= today;
       } else if (dateFilter === 'currentMonth') {
-        const from = new Date(today.getFullYear(), today.getMonth(), 1);
-        const to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        match = date >= from && date <= to;
+        const from = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+        match = date >= from && date <= today;
       } else if (dateFilter === 'lastMonth') {
-        const from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const to = new Date(today.getFullYear(), today.getMonth(), 0); // last day of previous month
+        const from = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+        const to = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0)); // last day of previous month
         match = date >= from && date <= to;
       } else if (dateFilter === 'lastYear' || dateFilter === 'year') {
-        const d = new Date(today); d.setFullYear(today.getFullYear() - 1);
+        const d = new Date(today);
+        d.setUTCFullYear(today.getUTCFullYear() - 1);
         match = date >= d && date <= today;
       } else if (dateFilter === 'custom') {
         if (customDateRange.from && customDateRange.to) {
-          const from = new Date(customDateRange.from); from.setHours(0, 0, 0, 0);
-          const to = new Date(customDateRange.to); to.setHours(0, 0, 0, 0);
+          const [fy, fm, fd] = customDateRange.from.split('-').map(Number);
+          const [ty, tm, td] = customDateRange.to.split('-').map(Number);
+          const from = new Date(Date.UTC(fy, fm - 1, fd));
+          const to = new Date(Date.UTC(ty, tm - 1, td));
           match = date >= from && date <= to;
         } else {
           match = true;
@@ -544,10 +554,10 @@ function ProcedureLogPage() {
     patientStatus: {
       label: 'Status', render: p => (
         <span className={`px-2 py-1 rounded text-xs font-medium ${p.status === 'IP' || p.status === 'Inpatient'
-            ? 'bg-light-maroon text-dark-maroon'
-            : p.status === 'OP' || p.status === 'Outpatient'
-              ? 'bg-green-100 text-green-800'
-              : 'bg-gray-100 text-gray-800'
+          ? 'bg-light-maroon text-dark-maroon'
+          : p.status === 'OP' || p.status === 'Outpatient'
+            ? 'bg-green-100 text-green-800'
+            : 'bg-gray-100 text-gray-800'
           }`}>
           {p.status}
         </span>

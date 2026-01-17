@@ -6,7 +6,7 @@ import { useAppSettings } from './_app';
 import Chart from '../components/common/Chart';
 import { useRouter } from 'next/router';
 
-const MODALITIES = ['All', 'USG', 'CT', 'OT', 'Fluoroscopy', 'DSA'];
+const MODALITIES = ['All', 'USG', 'CT', 'OT', 'XF', 'DSA'];
 
 function useAnalyticsData(type: string, params: Record<string, string | undefined>) {
   const [data, setData] = React.useState<{ labels: string[]; series: { name: string; data: number[] }[] } | null>(null);

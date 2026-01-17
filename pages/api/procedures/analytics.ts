@@ -15,23 +15,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (type === 'monthly') {
       // Monthly trends: last 12 months, filtered by modality
+      // Use UTC dates to avoid timezone issues
       const now = new Date();
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth();
+      const currentDay = now.getUTCDate();
+
       const months = [];
       for (let i = 11; i >= 0; i--) {
-        const d = subMonths(startOfMonth(now), i);
+        // Calculate month offset from current month
+        let year = currentYear;
+        let month = currentMonth - i;
+        while (month < 0) {
+          month += 12;
+          year -= 1;
+        }
+
+        // Start of this month (UTC)
+        const start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+
+        // End of this month (last day at 23:59:59.999 UTC)
+        // For non-current months, use last day of month
+        // For current month, use today
+        let endYear = year;
+        let endMonth = month;
+        let endDay: number;
+
+        if (i === 0) {
+          // Current month - use today
+          endDay = currentDay;
+        } else {
+          // Past months - use last day of month
+          endDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        }
+        const end = new Date(Date.UTC(endYear, endMonth, endDay, 23, 59, 59, 999));
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         months.push({
-          label: format(d, 'MMM yyyy'),
-          start: d,
-          end: subMonths(startOfMonth(now), i - 1)
+          label: `${monthNames[month]} ${year}`,
+          start,
+          end
         });
       }
-      months[months.length - 1].end = now;
+
       const data = [];
       for (const m of months) {
         const where: any = {
           procedureDate: {
             gte: m.start,
-            lt: m.end
+            lte: m.end
           }
         };
         if (modality && modality !== 'All') {
@@ -58,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (type === 'modality') {
       // Modality trends: x-axis modality, y-axis count, filtered by date
-      const modalities = ['USG', 'CT', 'OT', 'Fluoroscopy', 'DSA'];
+      const modalities = ['USG', 'CT', 'OT', 'XF', 'DSA'];
       let where: any = {};
       if (dateFrom) where.procedureDate = { ...(where.procedureDate || {}), gte: parseISO(dateFrom as string) };
       if (dateTo) where.procedureDate = { ...(where.procedureDate || {}), lte: parseISO(dateTo as string) };
