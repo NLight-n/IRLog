@@ -1,0 +1,180 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userID       Int        @id @default(autoincrement())
+  username     String     @unique
+  password     String
+  email        String     @unique
+  role         String
+  permissions  Permission[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  procedureLogsCreated ProcedureLog[] @relation("CreatedBy")
+  procedureLogsUpdated ProcedureLog[] @relation("UpdatedBy")
+  auditLogs    AuditLog[]
+  accounts     Account[]
+  sessions     Session[]
+  theme        String     @default("light")
+  accentColor  String?    @default("#3b82f6")
+  columns      Json?
+  workItemsCreated WorkItem[] @relation("WorkItemCreatedBy")
+  workItemsUpdated WorkItem[] @relation("WorkItemUpdatedBy")
+}
+
+model Permission {
+  id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [userID], references: [userID])
+  userID     Int
+  viewOnly         Boolean @default(true)
+  createProcedureLog Boolean @default(false)
+  editProcedureLog   Boolean @default(false)
+  editSettings       Boolean @default(false)
+  manageUsers        Boolean @default(false)
+  timestamp         DateTime @default(now())
+}
+
+model ProcedureLog {
+  procedureID         Int        @id @default(autoincrement())
+  patientID           String
+  patientName         String
+  patientAge          Int
+  patientSex          String
+  procedureName       String   @default("DSA")
+  status              String   @default("IP")
+  modality            String   @default("DSA")
+  procedureDate       DateTime
+  procedureTime       String
+  doneBy              ProcedurePhysicians[]
+  refPhysician        Int?      // physicianID
+  refPhysicianObj     Physician? @relation("RefPhysician", fields: [refPhysician], references: [physicianID])
+  procedureNotesText  String?
+  procedureNotesFilePath String?
+  followUp            String?
+  notes               String?
+  procedureCost       Float?
+  diagnosis           String
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  createdBy           User?      @relation("CreatedBy", fields: [createdById], references: [userID])
+  createdById         Int?
+  updatedBy           User?      @relation("UpdatedBy", fields: [updatedById], references: [userID])
+  updatedById         Int?
+}
+
+model WorkItem {
+  id               Int       @id @default(autoincrement())
+  patientID        String
+  patientName      String
+  procedureName    String
+  modality         String?
+  stage            String    @default("Pending") // Pending | OnEvaluation | Scheduled | Done
+  dateAdded        DateTime? // when added to Pending
+  dateEvaluated    DateTime?
+  dateScheduled    DateTime?
+  dateDone         DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdBy        User?     @relation("WorkItemCreatedBy", fields: [createdById], references: [userID])
+  createdById      Int?
+  updatedBy        User?     @relation("WorkItemUpdatedBy", fields: [updatedById], references: [userID])
+  updatedById      Int?
+}
+
+model Physician {
+  physicianID   Int      @id @default(autoincrement())
+  name          String
+  credentials   String
+  department    String
+  role          String   // IR or Referrer
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  procedures    ProcedurePhysicians[]
+  refLogs       ProcedureLog[] @relation("RefPhysician")
+}
+
+model ProcedurePhysicians {
+  id           Int         @id @default(autoincrement())
+  procedure    ProcedureLog @relation(fields: [procedureID], references: [procedureID])
+  procedureID  Int
+  physician    Physician   @relation(fields: [physicianID], references: [physicianID])
+  physicianID  Int
+}
+
+model Procedure {
+  proID         Int      @id @default(autoincrement())
+  procedureName String
+  procedureCost Float?
+  timestamp     DateTime @default(now())
+}
+
+model AuditLog {
+  logID         Int      @id @default(autoincrement())
+  actionType    String
+  user          User     @relation(fields: [userID], references: [userID])
+  userID        Int
+  affectedTable String
+  affectedRowID Int
+  dataBefore    Json?
+  dataAfter     Json?
+  timestamp     DateTime @default(now())
+}
+
+model Account {
+  id                 Int       @id @default(autoincrement())
+  userId             Int
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?   @db.Text
+  access_token       String?   @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?   @db.Text
+  session_state      String?
+  user               User      @relation(fields: [userId], references: [userID], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           Int       @id @default(autoincrement())
+  sessionToken String    @unique
+  userId       Int
+  expires      DateTime
+  user         User      @relation(fields: [userId], references: [userID], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String    @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model SystemSettings {
+  id              Int     @id @default(autoincrement())
+  appHeading      String  @default("Interventional Radiology")
+  appSubheading   String  @default("")
+  currency        String  @default("$")
+  dateFormat      String  @default("DD/MM/YYYY")
+  timeFormat      String  @default("24hr")
+  appLogoData     Bytes?  // Binary image data stored directly in DB
+  appLogoMimeType String? // MIME type of the image (e.g., "image/png")
+}
