@@ -31,6 +31,9 @@ interface ChartProps {
   title?: string;
   color?: string;
   height?: number;
+  stacked?: boolean;
+  highlightLabel?: string;
+  isDarkMode?: boolean;
 }
 
 const PALETTE = [
@@ -41,32 +44,33 @@ const PALETTE = [
   'rgba(168, 85, 247, 0.7)',
 ];
 
-export default function Chart({ type, labels, data, series, title, color, height = 320 }: ChartProps) {
-  const isDualAxis = series && series.length > 1;
+export default function Chart({ type, labels, data, series, title, color, height = 320, stacked = false, highlightLabel, isDarkMode = false }: ChartProps) {
+  const isDualAxis = !stacked && series && series.length > 1;
 
   const datasets = series
     ? series.map((s, i) => ({
-        label: s.name,
-        data: s.data,
-        backgroundColor: s.color || PALETTE[i % PALETTE.length],
-        borderColor: s.color || PALETTE[i % PALETTE.length].replace('0.7', '1'),
-        borderWidth: 2,
-        fill: type === 'line', // Only fill for line charts
-        tension: 0.3,
-        yAxisID: i === 0 ? 'y' : 'y1',
-      }))
+      label: s.name,
+      data: s.data,
+      backgroundColor: s.color || PALETTE[i % PALETTE.length],
+      borderColor: s.color || PALETTE[i % PALETTE.length].replace('0.7', '1'),
+      borderWidth: stacked ? 1 : 2,
+      fill: type === 'line', // Only fill for line charts
+      tension: 0.3,
+      spanGaps: false,
+      yAxisID: stacked ? 'y' : (i === 0 ? 'y' : 'y1'),
+    }))
     : [
-        {
-          label: title,
-          data: data || [],
-          backgroundColor: color || 'rgba(59, 130, 246, 0.7)',
-          borderColor: color || 'rgba(59, 130, 246, 1)',
-          borderWidth: 2,
-          fill: type === 'line',
-          tension: 0.3,
-          yAxisID: 'y',
-        },
-      ];
+      {
+        label: title,
+        data: data || [],
+        backgroundColor: color || 'rgba(59, 130, 246, 0.7)',
+        borderColor: color || 'rgba(59, 130, 246, 1)',
+        borderWidth: 2,
+        fill: type === 'line',
+        tension: 0.3,
+        yAxisID: 'y',
+      },
+    ];
 
   const chartData = {
     labels,
@@ -76,19 +80,36 @@ export default function Chart({ type, labels, data, series, title, color, height
   const options: any = {
     responsive: true,
     plugins: {
-      legend: { display: isDualAxis },
+      legend: { display: isDualAxis || stacked },
       title: { display: !!title, text: title, font: { size: 18 } },
       tooltip: { mode: 'index', intersect: false },
     },
     indexAxis: type === 'horizontalBar' ? 'y' : 'x',
     scales: {
       x: {
+        stacked: stacked,
         grid: { color: '#e5e7eb' },
-        ticks: { color: '#52525b' },
+        ticks: {
+          color: (ctx: any) => {
+            const label = labels[ctx.index];
+            if (highlightLabel && label === highlightLabel) {
+              return isDarkMode ? '#ffffff' : '#111827';
+            }
+            return '#52525b';
+          },
+          font: (ctx: any) => {
+            const label = labels[ctx.index];
+            if (highlightLabel && label === highlightLabel) {
+              return { weight: 'bold' as const, size: 13 };
+            }
+            return { size: 12 };
+          },
+        },
       },
       y: {
+        stacked: stacked,
         grid: { color: '#e5e7eb' },
-        ticks: { color: '#52525b' },
+        ticks: { color: '#52525b', stepSize: stacked ? 1 : undefined },
         position: 'left',
       },
     },

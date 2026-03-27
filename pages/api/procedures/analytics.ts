@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const perms = Array.isArray(user.permissions) ? user.permissions[0] : user.permissions;
   if (!perms?.viewOnly) return res.status(403).json({ message: 'Forbidden' });
 
-  const { type, dateFrom, dateTo, modality } = req.query;
+  const { type, dateFrom, dateTo, modality, monthOffset: monthOffsetParam } = req.query;
 
   try {
     if (type === 'monthly') {
@@ -21,11 +21,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const currentMonth = now.getUTCMonth();
       const currentDay = now.getUTCDate();
 
+      // monthOffset shifts the 12-month window backwards (0 = current, 1 = 1 month back, etc.)
+      const offsetVal = parseInt(monthOffsetParam as string || '0', 10) || 0;
+
       const months = [];
       for (let i = 11; i >= 0; i--) {
-        // Calculate month offset from current month
+        // Calculate month offset from current month, adjusted by the navigation offset
         let year = currentYear;
-        let month = currentMonth - i;
+        let month = currentMonth - i - offsetVal;
         while (month < 0) {
           month += 12;
           year -= 1;
@@ -41,11 +44,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let endMonth = month;
         let endDay: number;
 
-        if (i === 0) {
-          // Current month - use today
+        if (i === 0 && offsetVal === 0) {
+          // Current month with no offset - use today
           endDay = currentDay;
         } else {
-          // Past months - use last day of month
+          // Past months or offset applied - use last day of month
           endDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
         }
         const end = new Date(Date.UTC(endYear, endMonth, endDay, 23, 59, 59, 999));
@@ -86,6 +89,83 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           { name: 'Cases', data: data.map(d => d.count) },
           { name: 'Cost', data: data.map(d => d.cost) }
         ]
+      });
+    }
+    if (type === 'daily') {
+      // Daily trends: each day of a specific month, filtered by modality
+      const now = new Date();
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth();
+      const currentDay = now.getUTCDate();
+
+      const dailyOffset = parseInt(monthOffsetParam as string || '0', 10) || 0;
+
+      // Target month/year
+      let targetMonth = currentMonth - dailyOffset;
+      let targetYear = currentYear;
+      while (targetMonth < 0) {
+        targetMonth += 12;
+        targetYear -= 1;
+      }
+
+      // Number of days in the target month
+      const daysInMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+      // For current month, data stops at today; future days get null
+      const lastDataDay = (dailyOffset === 0) ? currentDay : daysInMonth;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      const allModalities = ['USG', 'CT', 'OT', 'XF', 'DSA'];
+      const modalityColors: Record<string, string> = {
+        USG: 'rgba(59, 130, 246, 0.8)',   // blue
+        CT: 'rgba(34, 197, 94, 0.8)',     // green
+        OT: 'rgba(234, 179, 8, 0.8)',     // yellow
+        XF: 'rgba(168, 85, 247, 0.8)',    // violet
+        DSA: 'rgba(239, 68, 68, 0.8)',     // red
+      };
+
+      const targetModalities = (modality && modality !== 'All') ? [modality as string] : allModalities;
+
+      const labels: string[] = [];
+      // Initialize per-modality arrays
+      const modalityCounts: Record<string, (number | null)[]> = {};
+      for (const m of targetModalities) {
+        modalityCounts[m] = [];
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        labels.push(day.toString());
+
+        if (day <= lastDataDay) {
+          const start = new Date(Date.UTC(targetYear, targetMonth, day, 0, 0, 0, 0));
+          const end = new Date(Date.UTC(targetYear, targetMonth, day, 23, 59, 59, 999));
+
+          for (const m of targetModalities) {
+            const count = await prisma.procedureLog.count({
+              where: {
+                procedureDate: { gte: start, lte: end },
+                modality: m,
+              },
+            });
+            modalityCounts[m].push(count);
+          }
+        } else {
+          for (const m of targetModalities) {
+            modalityCounts[m].push(null);
+          }
+        }
+      }
+
+      const series = targetModalities.map(m => ({
+        name: m,
+        data: modalityCounts[m],
+        color: modalityColors[m] || 'rgba(107, 114, 128, 0.8)',
+      }));
+
+      return res.json({
+        labels,
+        series,
+        monthLabel: `${monthNames[targetMonth]} ${targetYear}`
       });
     }
     if (type === 'modality') {
