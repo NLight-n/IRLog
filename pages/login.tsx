@@ -21,15 +21,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     const res = await signIn('credentials', {
       redirect: false,
       username,
       password,
     });
-    
+
     setLoading(false);
-    
+
     if (res?.ok) {
       window.location.href = '/';
     } else {
@@ -52,11 +52,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md">
         <div className="card shadow-lg">
-          <div className="card-header text-center">
-            <h1 className="text-2xl font-bold text-black mb-2">IR Log System</h1>
+          <div className="card-header flex flex-col items-center text-center">
+            <img src="/irLogo.svg" alt="IR Logo" style={{ height: '120px', width: 'auto' }} className="mb-4" />
+            <h1 className="text-3xl font-bold text-black mb-2">IR Log System</h1>
             <p className="text-gray-600">Sign in to your account</p>
           </div>
-          
+
           <div className="card-body">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="form-group">
@@ -74,7 +75,7 @@ export default function LoginPage() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div className="form-group">
                 <label className="form-label" htmlFor="password">
                   Password
@@ -90,13 +91,13 @@ export default function LoginPage() {
                   disabled={loading}
                 />
               </div>
-              
+
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
                   {error}
                 </div>
               )}
-              
+
               <button
                 type="submit"
                 className="btn btn-primary w-full"
@@ -114,7 +115,7 @@ export default function LoginPage() {
             </form>
           </div>
         </div>
-        
+
         <div className="text-center mt-6">
           <p className="text-gray-500 text-sm">
             Interventional Radiology Log Management System

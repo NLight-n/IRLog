@@ -1,5 +1,6 @@
 import { SessionProvider } from 'next-auth/react';
 import type { AppProps } from 'next/app';
+import Head from 'next/head';
 import '../styles/global.css';
 import { ThemeProvider } from '../lib/theme/ThemeContext';
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -70,6 +71,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
 
   return (
     <SessionProvider session={session}>
+      <Head>
+        <title>IRLog</title>
+        <link rel="icon" href="/irLogo.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.ico" />
+        <link rel="shortcut icon" href="/irLogo.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
       <ThemeProvider>
         <ColumnContext.Provider value={{ columns, setColumns }}>
           <AppSettingsContext.Provider value={{ appHeading, setAppHeading, appSubheading, setAppSubheading, appLogo, setAppLogo, refreshSettings }}>
