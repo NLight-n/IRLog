@@ -40,7 +40,7 @@ function AdminTab({ user, onUpdateAppHeading, onUpdateLogo }: { user: unknown, o
         if (data.appSubheading) setAppSubheading(data.appSubheading);
         // Use /api/logo endpoint if logo exists
         if (data.hasLogo) {
-          setAppLogo(`/api/logo?t=${Date.now()}`);
+          setAppLogo(`/irlog/api/logo?t=${Date.now()}`);
         } else {
           setAppLogo('');
         }
@@ -91,7 +91,7 @@ function AdminTab({ user, onUpdateAppHeading, onUpdateLogo }: { user: unknown, o
       if (!res.ok) throw new Error(result.error || 'Failed to upload logo');
 
       // Update local state and parent with new logo URL
-      const newLogoUrl = `/api/logo?t=${Date.now()}`;
+      const newLogoUrl = `/irlog/api/logo?t=${Date.now()}`;
       setAppLogo(newLogoUrl);
       onUpdateLogo(newLogoUrl);
       setSuccess('Logo uploaded successfully!');

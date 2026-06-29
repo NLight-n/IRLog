@@ -31,7 +31,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res?.ok) {
-      window.location.href = '/';
+      window.location.href = `${router.basePath || ''}/`;
     } else {
       setError('Invalid username or password');
     }
@@ -53,7 +53,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="card shadow-lg">
           <div className="card-header flex flex-col items-center text-center">
-            <img src="/irLogo.svg" alt="IR Logo" style={{ height: '120px', width: 'auto' }} className="mb-4" />
+            <img src={`${router.basePath || ''}/irLogo.svg`} alt="IR Logo" style={{ height: '120px', width: 'auto' }} className="mb-4" />
             <h1 className="text-3xl font-bold text-black mb-2">IR Log System</h1>
             <p className="text-gray-600">Sign in to your account</p>
           </div>

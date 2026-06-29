@@ -6,6 +6,45 @@ import { ThemeProvider } from '../lib/theme/ThemeContext';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ColumnContext, defaultColumns } from '../lib/columnContext';
 
+if (typeof window !== 'undefined' && !(window as any).__fetchOverridden) {
+  (window as any).__fetchOverridden = true;
+  const originalFetch = window.fetch;
+  window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+    let urlStr = '';
+    if (typeof input === 'string') {
+      urlStr = input;
+    } else if (input instanceof URL) {
+      urlStr = input.toString();
+    } else if (input && typeof input === 'object' && 'url' in input) {
+      urlStr = (input as any).url;
+    }
+
+    if (urlStr.startsWith('/api/')) {
+      const rewritten = '/irlog' + urlStr;
+      if (typeof input === 'string') {
+        return originalFetch(rewritten, init);
+      } else if (input instanceof URL) {
+        return originalFetch(new URL(rewritten, window.location.origin), init);
+      } else {
+        const newReq = new Request(rewritten, input as Request);
+        return originalFetch(newReq, init);
+      }
+    } else if (urlStr.startsWith(window.location.origin + '/api/')) {
+      const relativePart = urlStr.substring(window.location.origin.length);
+      const rewritten = window.location.origin + '/irlog' + relativePart;
+      if (typeof input === 'string') {
+        return originalFetch(rewritten, init);
+      } else if (input instanceof URL) {
+        return originalFetch(new URL(rewritten), init);
+      } else {
+        const newReq = new Request(rewritten, input as Request);
+        return originalFetch(newReq, init);
+      }
+    }
+    return originalFetch(input, init);
+  };
+}
+
 // AppSettingsContext for global heading/subheading/logo
 const AppSettingsContext = createContext({
   appHeading: 'Interventional Radiology Register',
@@ -33,7 +72,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         if (data.appSubheading !== undefined) setAppSubheading(data.appSubheading);
         // Use /api/logo endpoint if logo exists, with cache busting
         if (data.hasLogo) {
-          setAppLogo(`/api/logo?t=${Date.now()}`);
+          setAppLogo(`/irlog/api/logo?t=${Date.now()}`);
         } else {
           setAppLogo('');
         }
@@ -70,12 +109,12 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, []);
 
   return (
-    <SessionProvider session={session}>
+    <SessionProvider session={session} basePath="/irlog/api/auth">
       <Head>
         <title>IRLog</title>
-        <link rel="icon" href="/irLogo.svg" type="image/svg+xml" />
-        <link rel="alternate icon" href="/favicon.ico" />
-        <link rel="shortcut icon" href="/irLogo.svg" />
+        <link rel="icon" href="/irlog/irLogo.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/irlog/favicon.ico" />
+        <link rel="shortcut icon" href="/irlog/irLogo.svg" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <ThemeProvider>
