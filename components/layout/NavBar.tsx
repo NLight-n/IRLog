@@ -10,7 +10,7 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
   const username = user?.username || user?.name || 'User';
   const role = user?.role || '';
   const displayName = role === 'Doctor' ? `Dr. ${username}` : username;
-  const handleLogout = () => signOut({ callbackUrl: '/login' });
+  const handleLogout = () => signOut({ callbackUrl: `${router.basePath || ''}/login` });
   const handleSettings = () => router.push('/settings');
   const handleHome = () => {
     if (router.pathname === '/') {

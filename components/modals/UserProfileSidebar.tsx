@@ -3,6 +3,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { HexColorPicker } from 'react-colorful';
 import { useTheme } from '../../lib/theme/ThemeContext';
 import { ColumnContext, defaultColumns } from '../../lib/columnContext';
+import { useRouter } from 'next/router';
 
 interface UserProfileSidebarProps {
   open: boolean;
@@ -36,6 +37,7 @@ function getContrastColor(hex: string) {
 
 const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, scrollToColumnPrefs, setScrollToColumnPrefs }) => {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [form, setForm] = useState({ username: '', email: '' });
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
@@ -184,7 +186,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
       setSuccess('Profile updated successfully');
       // Alert and log out to refresh session with new username/email
       alert('Profile updated. Please log in again to see changes.');
-      await signOut({ callbackUrl: '/login' });
+      await signOut({ callbackUrl: `${router.basePath || ''}/login` });
     } catch (err: any) {
       setError(err.message);
     } finally {
