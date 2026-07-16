@@ -148,6 +148,28 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     setForm((f: any) => ({ ...f, [name]: value }));
   };
 
+  const handlePatientIDBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    if (viewOnly && !isEditing) return;
+    const patientID = e.target.value.trim();
+    if (!patientID) return;
+    try {
+      const res = await fetch(`/api/procedures/patient-lookup?patientID=${encodeURIComponent(patientID)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setForm((f: any) => ({
+            ...f,
+            patientName: data.patientName || f.patientName || '',
+            patientAge: data.patientAge !== undefined && data.patientAge !== null ? String(data.patientAge) : (f.patientAge || ''),
+            patientSex: data.patientSex || f.patientSex || '',
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching patient details:', err);
+    }
+  };
+
   const handleProcedureSelect = (proc: any) => {
     setForm((f: any) => ({
       ...f,
@@ -314,6 +336,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                     name="patientID" 
                     value={form?.patientID || ''} 
                     onChange={handleChange} 
+                    onBlur={handlePatientIDBlur}
                     required 
                     className="form-input"
                     placeholder="Enter patient ID"
