@@ -79,9 +79,15 @@ model WorkItem {
   id               Int       @id @default(autoincrement())
   patientID        String
   patientName      String
+  patientAge       Int?
+  patientSex       String?
   procedureName    String
   modality         String?
-  stage            String    @default("Pending") // Pending | OnEvaluation | Scheduled | Done
+  appointmentTime  String?
+  status           String    @default("Scheduled") // Scheduled | Done | NotDone | Cancelled
+  notDoneReason    String?
+  displayOrder     Int       @default(0)
+  stage            String    @default("Scheduled") // Pending | OnEvaluation | Scheduled | Done
   dateAdded        DateTime? // when added to Pending
   dateEvaluated    DateTime?
   dateScheduled    DateTime?

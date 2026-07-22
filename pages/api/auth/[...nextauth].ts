@@ -5,7 +5,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   const proto = req.headers['x-forwarded-proto'] || 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
-  process.env.NEXTAUTH_URL = `${proto}://${host}/irlog`;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  process.env.NEXTAUTH_URL = `${proto}://${host}${basePath}`;
 
   return await NextAuth(req, res, authOptions);
 }
