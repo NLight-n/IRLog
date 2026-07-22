@@ -27,13 +27,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json(response);
     }
     if (req.method === 'PATCH') {
-      const { appHeading, appSubheading, currency, dateFormat, timeFormat } = req.body;
+      const { appHeading, appSubheading, currency, dateFormat, timeFormat, weeklyHoliday } = req.body;
       const updateData: any = {};
       if (appHeading !== undefined) updateData.appHeading = appHeading;
       if (appSubheading !== undefined) updateData.appSubheading = appSubheading;
       if (currency !== undefined) updateData.currency = currency;
       if (dateFormat !== undefined) updateData.dateFormat = dateFormat;
       if (timeFormat !== undefined) updateData.timeFormat = timeFormat;
+      if (weeklyHoliday !== undefined) updateData.weeklyHoliday = weeklyHoliday;
       const updated = await prisma.systemSettings.update({
         where: { id: 1 },
         data: updateData,

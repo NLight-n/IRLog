@@ -181,6 +181,16 @@ model SystemSettings {
   currency        String  @default("$")
   dateFormat      String  @default("DD/MM/YYYY")
   timeFormat      String  @default("24hr")
+  weeklyHoliday   String  @default("Sunday")
   appLogoData     Bytes?  // Binary image data stored directly in DB
   appLogoMimeType String? // MIME type of the image (e.g., "image/png")
+}
+
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  date      String   @unique // YYYY-MM-DD format
+  name      String
+  type      String   @default("Festival") // Festival | Personal
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

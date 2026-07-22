@@ -64,6 +64,8 @@
   /* Transitions */
   --transition-theme: background 0.3s, color 0.3s, border-color 0.3s;
   --color-card-border-dark: #3f3f46; /* Lighter border for dark mode */
+  --color-today-bg: #eff6ff; /* Soft light blue tint for Today column */
+  --color-drag-over-bg: #dbeafe;
 }
 
 .dark {
@@ -82,6 +84,8 @@
   /* --color-accent: #60a5fa; */
   --color-accent-hover: #2563eb;
   --color-accent-light: #1e293b;
+  --color-today-bg: #1e293b; /* Darker navy blue background for Today column in dark mode */
+  --color-drag-over-bg: #172554;
   --color-success: #22d3ee;
   --color-warning: #fbbf24;
   --color-error: #f87171;
@@ -926,4 +930,14 @@ p {
   body {
     padding-bottom: 64px;
   }
+}
+
+/* Hide number input spinners for no-spinner class */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-spinner {
+  -moz-appearance: textfield;
 }

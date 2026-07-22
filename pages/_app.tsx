@@ -110,6 +110,17 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
     fetchAndMergeColumns();
   }, []);
 
+  // Register PWA Service Worker
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register(`${basePath}/sw.js`).catch(err => {
+          console.log('PWA ServiceWorker registration failed:', err);
+        });
+      });
+    }
+  }, []);
+
   return (
     <SessionProvider session={session} basePath={`${basePath}/api/auth`}>
       <Head>
@@ -117,6 +128,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <link rel="icon" href={`${basePath}/irLogo.svg`} type="image/svg+xml" />
         <link rel="alternate icon" href={`${basePath}/favicon.ico`} />
         <link rel="shortcut icon" href={`${basePath}/irLogo.svg`} />
+        <link rel="manifest" href={`${basePath}/manifest.json`} />
+        <link rel="apple-touch-icon" href={`${basePath}/icons/apple-touch-icon.png`} />
+        <meta name="theme-color" content="#3b82f6" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="IRLog" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <ThemeProvider>

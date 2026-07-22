@@ -35,10 +35,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         patientName: true,
         patientAge: true,
         patientSex: true,
+        createdAt: true,
       },
     });
 
-    return res.status(200).json(latestLog || null);
+    const latestWorkItem = await prisma.workItem.findFirst({
+      where: {
+        patientID: trimmedID,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        patientName: true,
+        patientAge: true,
+        patientSex: true,
+        createdAt: true,
+      },
+    });
+
+    if (!latestLog && latestWorkItem) {
+      return res.status(200).json({
+        patientName: latestWorkItem.patientName,
+        patientAge: latestWorkItem.patientAge,
+        patientSex: latestWorkItem.patientSex,
+      });
+    }
+
+    if (latestLog && latestWorkItem) {
+      if (new Date(latestWorkItem.createdAt) > new Date(latestLog.createdAt)) {
+        return res.status(200).json({
+          patientName: latestWorkItem.patientName,
+          patientAge: latestWorkItem.patientAge,
+          patientSex: latestWorkItem.patientSex,
+        });
+      }
+    }
+
+    return res.status(200).json(latestLog ? {
+      patientName: latestLog.patientName,
+      patientAge: latestLog.patientAge,
+      patientSex: latestLog.patientSex,
+    } : null);
   } catch (error: any) {
     console.error('Error looking up patient:', error);
     return res.status(500).json({ message: 'Internal server error' });
