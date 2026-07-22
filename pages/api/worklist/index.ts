@@ -9,7 +9,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const userId = parseInt(String(token.id || token.userID));
 
   if (req.method === 'GET') {
-    const items = await prisma.workItem.findMany({ orderBy: { updatedAt: 'desc' } });
+    const items = await prisma.workItem.findMany({
+      orderBy: [
+        { dateScheduled: 'asc' },
+        { displayOrder: 'asc' },
+        { id: 'asc' },
+      ],
+    });
     return res.status(200).json(items);
   }
 
@@ -18,16 +24,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const dbPerms = await prisma.permission.findFirst({ where: { userID: userId } });
     if (!dbPerms?.editProcedureLog) return res.status(403).json({ message: 'Forbidden' });
     const data = req.body || {};
-    const now = new Date().toISOString();
+    const now = new Date();
     const created = await prisma.workItem.create({
       data: {
         patientID: data.patientID,
         patientName: data.patientName,
+        patientAge: data.patientAge ? parseInt(String(data.patientAge), 10) : null,
+        patientSex: data.patientSex || null,
         procedureName: data.procedureName,
         modality: data.modality || null,
+        appointmentTime: data.appointmentTime || null,
+        status: data.status || 'Scheduled',
+        notDoneReason: data.notDoneReason || null,
+        displayOrder: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
+        stage: data.stage || 'Scheduled',
+        dateScheduled: data.dateScheduled ? new Date(data.dateScheduled) : now,
+        dateAdded: now,
         notes: data.notes || null,
-        stage: 'Pending',
-        dateAdded: now as unknown as Date,
         createdById: userId || null,
       },
     });

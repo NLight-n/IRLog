@@ -49,9 +49,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (body.dateDone) data.dateDone = new Date(body.dateDone);
     if (typeof body.patientName === 'string') data.patientName = body.patientName;
     if (typeof body.patientID === 'string') data.patientID = body.patientID;
+    if (body.patientAge !== undefined) data.patientAge = body.patientAge === null || body.patientAge === '' ? null : parseInt(String(body.patientAge), 10);
+    if (body.patientSex !== undefined) data.patientSex = body.patientSex || null;
     if (typeof body.procedureName === 'string') data.procedureName = body.procedureName;
-    if (typeof body.modality === 'string') data.modality = body.modality;
-    if (typeof body.notes === 'string') data.notes = body.notes || null;
+    if (body.modality !== undefined) data.modality = body.modality || null;
+    if (body.appointmentTime !== undefined) data.appointmentTime = body.appointmentTime || null;
+    if (typeof body.status === 'string') data.status = body.status;
+    if (body.notDoneReason !== undefined) data.notDoneReason = body.notDoneReason || null;
+    if (typeof body.displayOrder === 'number') data.displayOrder = body.displayOrder;
+    if (body.notes !== undefined) data.notes = body.notes || null;
 
     const before = await prisma.workItem.findUnique({ where: { id } });
     if (!before) return res.status(404).json({ message: 'Not found' });
