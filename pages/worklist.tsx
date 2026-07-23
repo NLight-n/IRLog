@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import NavBar from '../components/layout/NavBar';
-import { FiClock, FiPlus, FiEdit2, FiCheckCircle, FiXCircle, FiChevronLeft, FiChevronRight, FiSearch, FiSlash, FiRotateCcw, FiMoreVertical } from 'react-icons/fi';
+import * as XLSX from 'xlsx';
+import { FiClock, FiPlus, FiEdit2, FiCheckCircle, FiXCircle, FiChevronLeft, FiChevronRight, FiSearch, FiSlash, FiRotateCcw, FiMoreVertical, FiCalendar, FiRefreshCw, FiDownload, FiPrinter } from 'react-icons/fi';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useAppSettings } from './_app';
@@ -107,8 +108,17 @@ export default function AppointmentPage() {
     return today;
   });
 
+  // Export Modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportRangeOption, setExportRangeOption] = useState<'currentWeek' | 'all' | 'custom'>('currentWeek');
+  const [exportCustomStartDate, setExportCustomStartDate] = useState(formatDateKey(new Date()));
+  const [exportCustomEndDate, setExportCustomEndDate] = useState(formatDateKey(new Date()));
+  const [exportStatusFilter, setExportStatusFilter] = useState<'ALL' | 'Done' | 'NotDone' | 'Cancelled' | 'Scheduled'>('ALL');
+
   // Search filter
   const [searchText, setSearchText] = useState('');
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Modals & Card Action Popover state
   const [showApptModal, setShowApptModal] = useState(false);
@@ -238,11 +248,14 @@ export default function AppointmentPage() {
       .catch(() => {});
   }, [session, status, router]);
 
-  // Click outside listener for typable procedure dropdown
+  // Click outside listener for typable procedure dropdown & search container
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (procedureDropdownRef.current && !procedureDropdownRef.current.contains(e.target as Node)) {
         setShowProcedureDropdown(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -307,9 +320,7 @@ export default function AppointmentPage() {
 
       const dateKey = formatDateKey(d);
       let dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-      if (dateKey === todayStr) {
-        dayName = 'Today';
-      } else if (dateKey === yesterdayStr) {
+      if (dateKey === yesterdayStr) {
         dayName = 'Yesterday';
       }
 
@@ -328,24 +339,36 @@ export default function AppointmentPage() {
     return days;
   }, [startDate, getHolidayForDate]);
 
-  // Filter items by search
-  const filteredItems = useMemo(() => {
+  // Global search results across ALL appointments stored in database
+  const globalSearchResults = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-    if (!query) return items;
+    if (!query) return [];
     return items.filter(it =>
       it.patientName.toLowerCase().includes(query) ||
       it.patientID.toLowerCase().includes(query) ||
       it.procedureName.toLowerCase().includes(query) ||
-      (it.modality && it.modality.toLowerCase().includes(query))
-    );
+      (it.modality && it.modality.toLowerCase().includes(query)) ||
+      (it.notDoneReason && it.notDoneReason.toLowerCase().includes(query)) ||
+      (it.notes && it.notes.toLowerCase().includes(query))
+    ).slice(0, 15);
   }, [items, searchText]);
+
+  const handleSelectSearchResult = (item: AppointmentItem) => {
+    if (item.dateScheduled) {
+      const targetDate = new Date(item.dateScheduled);
+      targetDate.setHours(0, 0, 0, 0);
+      setStartDate(targetDate);
+    }
+    setActionCard(item);
+    setShowSearchDropdown(false);
+  };
 
   // Group items by dateKey YYYY-MM-DD
   const itemsByDay = useMemo(() => {
     const map: Record<string, AppointmentItem[]> = {};
     daysList.forEach(day => { map[day.dateKey] = []; });
 
-    filteredItems.forEach(item => {
+    items.forEach(item => {
       let key = '';
       if (item.dateScheduled) {
         const d = new Date(item.dateScheduled);
@@ -362,7 +385,16 @@ export default function AppointmentPage() {
     });
 
     return map;
-  }, [filteredItems, daysList]);
+  }, [items, daysList]);
+
+  // Dynamic grid template columns: Holiday columns with 0 items take 0.5fr width (50%), others take 1fr
+  const gridTemplateColumns = useMemo(() => {
+    return daysList.map(day => {
+      const itemCount = (itemsByDay[day.dateKey] || []).length;
+      const isSlimHoliday = !!day.holiday && itemCount === 0;
+      return isSlimHoliday ? '0.5fr' : '1fr';
+    }).join(' ');
+  }, [daysList, itemsByDay]);
 
   // Date Navigation handlers
   const handlePrevWeek = () => {
@@ -510,6 +542,28 @@ export default function AppointmentPage() {
     setShowApptModal(true);
   };
 
+  const handleRefixAppointment = (item: AppointmentItem) => {
+    if (!canEdit) return;
+    setActionCard(null);
+    setEditingItem(null);
+    const origDateStr = item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : '';
+    setFormState({
+      patientID: item.patientID,
+      patientName: item.patientName,
+      patientAge: item.patientAge != null ? String(item.patientAge) : '',
+      patientSex: item.patientSex || '',
+      procedureName: item.procedureName,
+      modality: item.modality || '',
+      appointmentTime: '',
+      dateScheduled: formatDateKey(new Date()),
+      notes: item.notes ? `[Refixed from ${origDateStr}] ${item.notes}` : `Refixed from ${origDateStr}`,
+    });
+    setShowProcedureDropdown(false);
+    setProcedureDropdownIndex(-1);
+    setApptModalMode('create');
+    setShowApptModal(true);
+  };
+
   const executeSaveAppointment = async () => {
     if (!canEdit) return;
     if (!formState.patientID || !formState.patientName || !formState.procedureName) return;
@@ -602,6 +656,234 @@ export default function AppointmentPage() {
     } catch (err) {
       console.error('Failed to delete holiday:', err);
     }
+  };
+
+  // Export Data Handlers
+  const getExportItems = () => {
+    let filtered = [...items];
+
+    if (exportRangeOption === 'currentWeek') {
+      const weekKeys = new Set(daysList.map(d => d.dateKey));
+      filtered = filtered.filter(it => {
+        if (!it.dateScheduled) return false;
+        const k = formatDateKey(new Date(it.dateScheduled));
+        return weekKeys.has(k);
+      });
+    } else if (exportRangeOption === 'custom') {
+      filtered = filtered.filter(it => {
+        if (!it.dateScheduled) return false;
+        const k = formatDateKey(new Date(it.dateScheduled));
+        return k >= exportCustomStartDate && k <= exportCustomEndDate;
+      });
+    }
+
+    if (exportStatusFilter !== 'ALL') {
+      filtered = filtered.filter(it => it.status === exportStatusFilter);
+    }
+
+    filtered.sort((a, b) => {
+      const da = a.dateScheduled ? new Date(a.dateScheduled).getTime() : 0;
+      const db = b.dateScheduled ? new Date(b.dateScheduled).getTime() : 0;
+      return da - db;
+    });
+
+    return filtered;
+  };
+
+  const handleExportExcel = () => {
+    const exportData = getExportItems();
+    if (exportData.length === 0) {
+      alert('No appointment records found matching the selected filter.');
+      return;
+    }
+
+    const rows = exportData.map(item => ({
+      'Date Scheduled': item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : '',
+      'Patient ID': item.patientID,
+      'Patient Name': item.patientName,
+      'Age': item.patientAge ?? '',
+      'Sex': item.patientSex ?? '',
+      'Procedure Name': item.procedureName,
+      'Modality': item.modality ?? '',
+      'Status': item.status === 'NotDone' ? 'Not Done' : item.status,
+      'Reason (Not Done / Cancelled)': item.notDoneReason ?? '',
+      'Notes': item.notes ?? '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    ws['!cols'] = [
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 6 },
+      { wch: 6 },
+      { wch: 25 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 32 },
+      { wch: 30 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Appointments_Audit');
+
+    const dateStr = formatDateKey(new Date());
+    XLSX.writeFile(wb, `IRLog_Appointments_Export_${dateStr}.xlsx`);
+    setShowExportModal(false);
+  };
+
+  const handleExportPDF = () => {
+    const exportData = getExportItems();
+    if (exportData.length === 0) {
+      alert('No appointment records found matching the selected filter.');
+      return;
+    }
+
+    const notDoneReasonsCount: Record<string, number> = {};
+    const cancelledReasonsCount: Record<string, number> = {};
+    let doneCount = 0;
+    let notDoneCount = 0;
+    let cancelledCount = 0;
+    let scheduledCount = 0;
+
+    exportData.forEach(it => {
+      if (it.status === 'Done') doneCount++;
+      else if (it.status === 'NotDone') {
+        notDoneCount++;
+        const reason = it.notDoneReason || 'Unspecified';
+        notDoneReasonsCount[reason] = (notDoneReasonsCount[reason] || 0) + 1;
+      } else if (it.status === 'Cancelled') {
+        cancelledCount++;
+        const reason = it.notDoneReason || 'Unspecified';
+        cancelledReasonsCount[reason] = (cancelledReasonsCount[reason] || 0) + 1;
+      } else {
+        scheduledCount++;
+      }
+    });
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to export printable PDF report.');
+      return;
+    }
+
+    const dateTodayStr = new Date().toLocaleDateString('en-US', { dateStyle: 'full' });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>IRLog Appointments & Status Audit Report</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #1e293b; background: #fff; }
+          h1 { font-size: 22px; color: #0f172a; margin-bottom: 4px; margin-top: 0; }
+          .subtitle { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+          .card { padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; }
+          .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+          .card-value { font-size: 22px; font-weight: 800; }
+          .done { color: #16a34a; }
+          .notdone { color: #d97706; }
+          .cancelled { color: #dc2626; }
+          .scheduled { color: #2563eb; }
+          
+          .breakdown-box { margin-bottom: 20px; padding: 12px 16px; border-radius: 8px; background: #fffbebf; border: 1px solid #fef3c7; font-size: 13px; }
+          .breakdown-box h3 { margin: 0 0 8px 0; font-size: 14px; color: #92400e; }
+          .breakdown-list { margin: 0; padding-left: 20px; }
+          .breakdown-list li { margin-bottom: 4px; }
+
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+          th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+          th { background: #f1f5f9; font-weight: 700; color: #334155; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .badge { font-weight: 700; font-size: 10px; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+          .badge-done { background: #dcfce7; color: #15803d; }
+          .badge-notdone { background: #fef3c7; color: #92400e; }
+          .badge-cancelled { background: #fee2e2; color: #b91c1c; }
+          .badge-scheduled { background: #dbeafe; color: #1e40af; }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+          <div>
+            <h1>IRLog Appointments & Procedure Audit Report</h1>
+            <div class="subtitle">Generated on ${dateTodayStr} | Total Filtered Records: ${exportData.length}</div>
+          </div>
+          <button class="no-print" onclick="window.print()" style="padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Print / Save as PDF</button>
+        </div>
+
+        <div class="summary-grid">
+          <div class="card"><div class="card-title">Completed (Done)</div><div class="card-value done">${doneCount}</div></div>
+          <div class="card"><div class="card-title">Not Done</div><div class="card-value notdone">${notDoneCount}</div></div>
+          <div class="card"><div class="card-title">Cancelled</div><div class="card-value cancelled">${cancelledCount}</div></div>
+          <div class="card"><div class="card-title">Scheduled</div><div class="card-value scheduled">${scheduledCount}</div></div>
+        </div>
+
+        ${notDoneCount > 0 ? `
+          <div class="breakdown-box">
+            <h3>⚠️ Not Done Reasons Breakdown:</h3>
+            <ul class="breakdown-list">
+              ${Object.entries(notDoneReasonsCount).map(([reason, cnt]) => `<li><strong>${reason}:</strong> ${cnt} case(s)</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${cancelledCount > 0 ? `
+          <div class="breakdown-box" style="background:#fef2f2; border-color:#fecaca;">
+            <h3 style="color:#b91c1c;">🚫 Cancellation Reasons Breakdown:</h3>
+            <ul class="breakdown-list">
+              ${Object.entries(cancelledReasonsCount).map(([reason, cnt]) => `<li><strong>${reason}:</strong> ${cnt} case(s)</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        <table>
+          <thead>
+            <tr>
+              <th>Date Scheduled</th>
+              <th>Patient ID</th>
+              <th>Patient Name</th>
+              <th>Age/Sex</th>
+              <th>Procedure Name</th>
+              <th>Modality</th>
+              <th>Status</th>
+              <th>Reason (Not Done / Cancelled)</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${exportData.map(item => {
+              const stClass = item.status === 'Done' ? 'badge-done' : item.status === 'NotDone' ? 'badge-notdone' : item.status === 'Cancelled' ? 'badge-cancelled' : 'badge-scheduled';
+              const stLabel = item.status === 'NotDone' ? 'Not Done' : item.status;
+              const dateStr = item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : '-';
+              return `
+                <tr>
+                  <td>${dateStr}</td>
+                  <td><strong>${item.patientID}</strong></td>
+                  <td>${item.patientName}</td>
+                  <td>${item.patientAge ?? ''}/${item.patientSex ?? ''}</td>
+                  <td>${item.procedureName}</td>
+                  <td>${item.modality || '-'}</td>
+                  <td><span class="badge ${stClass}">${stLabel}</span></td>
+                  <td style="color:${item.status === 'Cancelled' ? '#b91c1c' : '#92400e'}">${item.notDoneReason || '-'}</td>
+                  <td>${item.notes || '-'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    printWin.document.write(htmlContent);
+    printWin.document.close();
+    setShowExportModal(false);
   };
 
   const handleDeleteAppointment = async (id: number) => {
@@ -753,8 +1035,9 @@ export default function AppointmentPage() {
 
       <div style={{ paddingTop: 80, paddingInline: 16, paddingBottom: 24, flex: 1, display: 'flex', flexDirection: 'column' }}>
         
-        {/* Header & Controls Bar */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+        {/* Header Row 1: Title on Left, Action Buttons on Right */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 12, width: '100%' }}>
+          {/* Title & Badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-gray-900)' }}>Procedure Appointments</h2>
             <span style={{
@@ -769,77 +1052,28 @@ export default function AppointmentPage() {
             </span>
           </div>
 
-          {/* Date Navigation & Actions */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-white)', border: '1px solid var(--color-gray-300)', borderRadius: 8, padding: '2px 6px' }}>
-              <button
-                onClick={handlePrevWeek}
-                title="Previous 7 Days"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
-              >
-                <FiChevronLeft size={18} />
-              </button>
-              <button
-                onClick={handleGoToday}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: 13,
-                  padding: '4px 10px',
-                  color: 'var(--color-accent)',
-                }}
-              >
-                Today
-              </button>
-              <button
-                onClick={handleNextWeek}
-                title="Next 7 Days"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
-              >
-                <FiChevronRight size={18} />
-              </button>
-            </div>
-
-            {/* Jump to Date Picker */}
-            <input
-              type="date"
-              value={formatDateKey(startDate)}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setStartDate(new Date(`${e.target.value}T00:00:00`));
-                }
-              }}
+          {/* Right Action Buttons Group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+            {/* Export Data Button */}
+            <button
+              onClick={() => setShowExportModal(true)}
               style={{
-                padding: '6px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'var(--color-gray-100)',
+                color: 'var(--color-gray-900)',
                 border: '1px solid var(--color-gray-300)',
                 borderRadius: 8,
+                padding: '8px 14px',
+                fontWeight: 600,
                 fontSize: 13,
-                background: 'var(--color-white)',
-                color: 'var(--color-gray-900)'
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
-            />
-
-            {/* Search Input */}
-            <div style={{ position: 'relative' }}>
-              <FiSearch style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-gray-400)' }} />
-              <input
-                type="text"
-                placeholder="Search patient, ID, procedure..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                style={{
-                  padding: '6px 12px 6px 32px',
-                  border: '1px solid var(--color-gray-300)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  width: 220,
-                  background: 'var(--color-white)',
-                  color: 'var(--color-gray-900)'
-                }}
-              />
-            </div>
+            >
+              <FiDownload size={15} /> Export Audit
+            </button>
 
             {/* Holiday List Button */}
             {canEdit && (
@@ -857,6 +1091,7 @@ export default function AppointmentPage() {
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: 'pointer',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 🌴 Holiday List
@@ -880,10 +1115,176 @@ export default function AppointmentPage() {
                   fontSize: 14,
                   cursor: 'pointer',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 <FiPlus size={16} /> Add Appointment
               </button>
+            )}
+          </div>
+        </div>
+
+        {/* Header Row 2: Left Navigation Controls (Date Nav, Date Picker, Search) */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16, width: '100%' }}>
+          {/* Prev / Today / Next */}
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-white)', border: '1px solid var(--color-gray-300)', borderRadius: 8, padding: '2px 6px' }}>
+            <button
+              onClick={handlePrevWeek}
+              title="Previous 7 Days"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
+            >
+              <FiChevronLeft size={18} />
+            </button>
+            <button
+              onClick={handleGoToday}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 13,
+                padding: '4px 10px',
+                color: 'var(--color-accent)',
+              }}
+            >
+              Today
+            </button>
+            <button
+              onClick={handleNextWeek}
+              title="Next 7 Days"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
+            >
+              <FiChevronRight size={18} />
+            </button>
+          </div>
+
+          {/* Jump to Date Picker */}
+          <input
+            type="date"
+            value={formatDateKey(startDate)}
+            onChange={(e) => {
+              if (e.target.value) {
+                setStartDate(new Date(`${e.target.value}T00:00:00`));
+              }
+            }}
+            style={{
+              padding: '6px 10px',
+              border: '1px solid var(--color-gray-300)',
+              borderRadius: 8,
+              fontSize: 13,
+              background: 'var(--color-white)',
+              color: 'var(--color-gray-900)'
+            }}
+          />
+
+          {/* Search Input with Global Dropdown */}
+          <div ref={searchContainerRef} style={{ position: 'relative' }}>
+            <FiSearch style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-gray-400)' }} />
+            <input
+              type="text"
+              placeholder="Search all appointments..."
+              value={searchText}
+              onFocus={() => setShowSearchDropdown(true)}
+              onChange={(e) => {
+                setSearchText(e.target.value);
+                setShowSearchDropdown(true);
+              }}
+              style={{
+                padding: '6px 12px 6px 32px',
+                border: '1px solid var(--color-gray-300)',
+                borderRadius: 8,
+                fontSize: 13,
+                width: 230,
+                background: 'var(--color-white)',
+                color: 'var(--color-gray-900)'
+              }}
+            />
+
+            {/* Global Search Results Dropdown Popup */}
+            {showSearchDropdown && searchText.trim().length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: 0,
+                width: 'min(380px, 90vw)',
+                maxHeight: 340,
+                overflowY: 'auto',
+                background: 'var(--color-white)',
+                border: '1px solid var(--color-gray-300)',
+                borderRadius: 10,
+                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                zIndex: 100,
+                padding: '6px 0',
+              }}>
+                {globalSearchResults.length === 0 ? (
+                  <div style={{ padding: 14, fontSize: 13, color: 'var(--color-gray-500)', textAlign: 'center' }}>
+                    No matching appointments found.
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-gray-500)', borderBottom: '1px solid var(--color-gray-100)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Search Results ({globalSearchResults.length})</span>
+                      <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-accent)' }}>Click to jump to date</span>
+                    </div>
+                    {globalSearchResults.map(item => {
+                      const isDone = item.status === 'Done';
+                      const isNotDone = item.status === 'NotDone';
+                      const isCancelled = item.status === 'Cancelled';
+                      const dateStr = item.dateScheduled ? new Date(item.dateScheduled).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'Unscheduled';
+
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => handleSelectSearchResult(item)}
+                          style={{
+                            padding: '10px 14px',
+                            borderBottom: '1px solid var(--color-gray-100)',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-gray-100)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 2 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-gray-900)' }}>
+                              {item.patientName}
+                            </div>
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              whiteSpace: 'nowrap',
+                              background: isDone ? '#dcfce7' : isNotDone ? '#fef3c7' : isCancelled ? '#fee2e2' : '#dbeafe',
+                              color: isDone ? '#15803d' : isNotDone ? '#92400e' : isCancelled ? '#b91c1c' : '#1e40af',
+                            }}>
+                              {item.status === 'NotDone' ? 'Not Done' : item.status}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600 }}>ID: {item.patientID}</span>
+                            {(item.patientAge != null || item.patientSex) && (
+                              <span>• {item.patientAge != null ? `${item.patientAge}Y` : ''}{item.patientSex ? `/${item.patientSex}` : ''}</span>
+                            )}
+                          </div>
+
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{item.procedureName} {item.modality ? `[${item.modality}]` : ''}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-gray-600)', background: 'var(--color-gray-100)', padding: '1px 6px', borderRadius: 4 }}>📅 {dateStr}</span>
+                          </div>
+
+                          {item.notDoneReason && (
+                            <div style={{ fontSize: 11, color: isCancelled ? '#b91c1c' : '#92400e', fontStyle: 'italic', marginTop: 3 }}>
+                              Reason: {item.notDoneReason}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -893,12 +1294,13 @@ export default function AppointmentPage() {
           <div style={{ overflowX: 'auto', paddingBottom: 8, flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
+              gridTemplateColumns: gridTemplateColumns,
               gap: 12,
-              minWidth: 780,
+              minWidth: 'max(1120px, 100%)',
               flex: 1,
               minHeight: 520,
-              alignItems: 'stretch'
+              alignItems: 'stretch',
+              transition: 'grid-template-columns 0.3s ease',
             }}>
             {daysList.map((day) => {
               const dayItems = itemsByDay[day.dateKey] || [];
@@ -909,10 +1311,12 @@ export default function AppointmentPage() {
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       style={{
+                        position: 'relative',
+                        overflow: 'hidden',
                         background: snapshot.isDraggingOver
                           ? 'var(--color-drag-over-bg, #dbeafe)'
                           : day.holiday
-                          ? (day.holiday.type === 'Festival' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(14, 165, 233, 0.08)')
+                          ? (day.holiday.type === 'Festival' ? 'rgba(245, 158, 11, 0.06)' : 'rgba(14, 165, 233, 0.06)')
                           : day.isToday
                           ? 'var(--color-today-bg, #eff6ff)'
                           : 'var(--color-gray-100)',
@@ -929,14 +1333,47 @@ export default function AppointmentPage() {
                         boxShadow: day.isToday ? '0 2px 8px rgba(59,130,246,0.15)' : 'none',
                       }}
                     >
+                      {/* Vertical Background Watermark for Holiday */}
+                      {day.holiday && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 55,
+                          bottom: 10,
+                          left: 0,
+                          right: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          pointerEvents: 'none',
+                          overflow: 'hidden',
+                          zIndex: 0,
+                        }}>
+                          <div style={{
+                            writingMode: 'vertical-rl',
+                            fontSize: 14,
+                            fontWeight: 800,
+                            letterSpacing: 2,
+                            textTransform: 'uppercase',
+                            color: day.holiday.type === 'Festival' ? '#d97706' : '#0284c7',
+                            opacity: 0.5,
+                            userSelect: 'none',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {day.holiday.type === 'Festival' ? '🎉 ' : '🌴 '}{day.holiday.name}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Day Column Header */}
                       <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
-                        alignItems: 'flex-start',
+                        alignItems: 'center',
                         marginBottom: 10,
                         paddingBottom: 8,
-                        borderBottom: '1px solid var(--color-gray-200)'
+                        borderBottom: '1px solid var(--color-gray-200)',
+                        position: 'relative',
+                        zIndex: 1,
                       }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: day.isToday ? 'var(--color-accent)' : 'var(--color-gray-800)' }}>
@@ -945,24 +1382,6 @@ export default function AppointmentPage() {
                           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-gray-900)', marginTop: 2 }}>
                             {day.formattedDate}
                           </div>
-                          {day.holiday && (
-                            <div style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: day.holiday.type === 'Festival' ? '#b45309' : '#0369a1',
-                              background: day.holiday.type === 'Festival' ? '#fef3c7' : '#e0f2fe',
-                              border: day.holiday.type === 'Festival' ? '1px solid #fde68a' : '1px solid #bae6fd',
-                              padding: '2px 6px',
-                              borderRadius: 4,
-                              marginTop: 4,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              wordBreak: 'break-word',
-                            }} title={`${day.holiday.name} (${day.holiday.type} Holiday)`}>
-                              {day.holiday.type === 'Festival' ? '🎉' : '🌴'} {day.holiday.name}
-                            </div>
-                          )}
                         </div>
                         <span style={{
                           background: day.isToday ? 'var(--color-accent)' : 'var(--color-gray-200)',
@@ -986,11 +1405,13 @@ export default function AppointmentPage() {
                           onClick={() => openCreateModal(day.dateKey)}
                           title={`Add appointment on ${day.formattedDate}`}
                           style={{
+                            position: 'relative',
+                            zIndex: 1,
                             width: '100%',
                             padding: '6px',
                             marginBottom: 8,
                             border: '1px dashed var(--color-gray-300)',
-                            background: 'transparent',
+                            background: 'var(--color-white)',
                             color: 'var(--color-gray-600)',
                             borderRadius: 6,
                             fontSize: 12,
@@ -1007,7 +1428,7 @@ export default function AppointmentPage() {
                       )}
 
                       {/* List of Appointment Cards */}
-                      <div style={{ flex: 1, overflowY: 'auto' }}>
+                      <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 1 }}>
                         {dayItems.map((item, idx) => {
                           const isDone = item.status === 'Done';
                           const isNotDone = item.status === 'NotDone';
@@ -1080,16 +1501,9 @@ export default function AppointmentPage() {
                                   </div>
 
                                   {/* Procedure & Modality */}
-                                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)', marginBottom: item.appointmentTime || item.notDoneReason ? 2 : 0 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)', marginBottom: item.notDoneReason ? 2 : 0 }}>
                                     {item.procedureName} {item.modality ? `[${item.modality}]` : ''}
                                   </div>
-
-                                  {/* Time (Optional) */}
-                                  {item.appointmentTime && (
-                                    <div style={{ fontSize: 10, color: 'var(--color-gray-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                      <FiClock size={10} /> {item.appointmentTime}
-                                    </div>
-                                  )}
 
                                   {/* Reason note if NotDone or Cancelled */}
                                   {item.notDoneReason && (
@@ -1467,6 +1881,28 @@ export default function AppointmentPage() {
                   <FiSlash size={16} /> Mark as Cancelled
                 </button>
 
+                {(actionCard.status === 'NotDone' || actionCard.status === 'Cancelled') && (
+                  <button
+                    onClick={() => handleRefixAppointment(actionCard)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: 'var(--color-accent)',
+                      color: 'var(--color-accent-contrast, #fff)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                  >
+                    <FiRefreshCw size={16} /> Refix Appointment (Copy to Today)
+                  </button>
+                )}
+
                 {actionCard.status !== 'Scheduled' && (
                   <button
                     onClick={() => { handleResetToScheduled(actionCard); }}
@@ -1719,6 +2155,125 @@ export default function AppointmentPage() {
                 style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Options Modal */}
+      {showExportModal && (
+        <div onClick={() => setShowExportModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 12, padding: 22, width: 'min(500px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', border: '1px solid var(--color-gray-300)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--color-gray-900)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FiDownload size={20} color="var(--color-accent)" /> Export Audit & Appointments
+              </div>
+              <button onClick={() => setShowExportModal(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--color-gray-500)' }}>×</button>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 16 }}>
+              Export detailed appointment tracking records including completed status, non-completion reasons, and cancellation feedback.
+            </p>
+
+            {/* Date Range Selection */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--color-gray-800)' }}>Date Range</label>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="exportRange"
+                    value="currentWeek"
+                    checked={exportRangeOption === 'currentWeek'}
+                    onChange={() => setExportRangeOption('currentWeek')}
+                  />
+                  Current 7-Day View
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="exportRange"
+                    value="all"
+                    checked={exportRangeOption === 'all'}
+                    onChange={() => setExportRangeOption('all')}
+                  />
+                  All Records
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="exportRange"
+                    value="custom"
+                    checked={exportRangeOption === 'custom'}
+                    onChange={() => setExportRangeOption('custom')}
+                  />
+                  Custom Date Range
+                </label>
+              </div>
+
+              {exportRangeOption === 'custom' && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--color-gray-100)', padding: 10, borderRadius: 8 }}>
+                  <label style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>From:
+                    <input
+                      type="date"
+                      value={exportCustomStartDate}
+                      onChange={(e) => setExportCustomStartDate(e.target.value)}
+                      style={{ width: '100%', marginTop: 4, padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                    />
+                  </label>
+                  <label style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>To:
+                    <input
+                      type="date"
+                      value={exportCustomEndDate}
+                      onChange={(e) => setExportCustomEndDate(e.target.value)}
+                      style={{ width: '100%', marginTop: 4, padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Status Filter */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--color-gray-800)' }}>Status Filter</label>
+              <select
+                value={exportStatusFilter}
+                onChange={(e) => setExportStatusFilter(e.target.value as any)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-gray-300)', borderRadius: 8, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+              >
+                <option value="ALL">All Statuses (Done, Not Done, Cancelled, Scheduled)</option>
+                <option value="NotDone">⚠️ Not Done Only (with Reasons)</option>
+                <option value="Cancelled">🚫 Cancelled Only (with Reasons)</option>
+                <option value="Done">✅ Done / Completed Only</option>
+                <option value="Scheduled">🔵 Scheduled Only</option>
+              </select>
+            </div>
+
+            {/* Export Format Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 12, borderTop: '1px solid var(--color-gray-200)' }}>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: 'none', background: '#16a34a', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+              >
+                <FiDownload size={16} /> Excel (.xlsx)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: 'none', background: '#2563eb', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+              >
+                <FiPrinter size={16} /> PDF / Print Report
               </button>
             </div>
           </div>
