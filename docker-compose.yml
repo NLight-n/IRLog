@@ -31,6 +31,8 @@ services:
   web:
     build:
       context: .
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
     restart: always
     depends_on:
       - postgres
@@ -39,6 +41,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: ${NODE_ENV}
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
     env_file:
       - .env
     networks:

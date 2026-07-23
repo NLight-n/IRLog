@@ -7,6 +7,11 @@ RUN npm ci
 # 2. Generate Prisma client and build the app
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Accept build argument for Next.js build-time public environment variables
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
