@@ -941,3 +941,67 @@ input.no-spinner::-webkit-inner-spin-button {
 input.no-spinner {
   -moz-appearance: textfield;
 }
+
+/* Navigation Notification Badges */
+.nav-badge-desktop {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  height: 17px;
+  min-width: 17px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-white, #ffffff);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+  line-height: 1;
+  pointer-events: none;
+  animation: badgePop 0.3s ease-out;
+}
+
+.dark .nav-badge-desktop {
+  border-color: var(--color-gray-100, #1f2937);
+}
+
+.nav-badge-mobile {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  height: 15px;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-gray-50, #f9fafb);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+  line-height: 1;
+  pointer-events: none;
+  animation: badgePop 0.3s ease-out;
+}
+
+.dark .nav-badge-mobile {
+  border-color: var(--color-gray-100, #1f2937);
+}
+
+@keyframes badgePop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

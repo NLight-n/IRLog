@@ -8,6 +8,7 @@ import { useRouter } from 'next/router';
 import { useAppSettings } from './_app';
 import { useTheme } from '../lib/theme/ThemeContext';
 import ProcedureLogModal from '../components/modals/ProcedureLogModal';
+import { useAppointmentsCount } from '../lib/appointmentsCountContext';
 
 type AppointmentItem = {
   id: number;
@@ -74,6 +75,7 @@ export default function AppointmentPage() {
   const router = useRouter();
   const { appHeading, appSubheading, appLogo } = useAppSettings();
   const { theme, setTheme } = useTheme();
+  const { refreshTodayCount } = useAppointmentsCount();
 
   const [items, setItems] = useState<AppointmentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -468,6 +470,7 @@ export default function AppointmentPage() {
           });
         }
       });
+      refreshTodayCount();
     } catch (e) {
       console.error('Failed to update drag and drop changes', e);
     }
@@ -591,6 +594,7 @@ export default function AppointmentPage() {
         const created = await res.json();
         setItems(prev => [created, ...prev]);
         setShowApptModal(false);
+        refreshTodayCount();
       }
     } else if (apptModalMode === 'edit' && editingItem) {
       const res = await fetch(`/api/worklist/${editingItem.id}`, {
@@ -602,6 +606,7 @@ export default function AppointmentPage() {
         const updated = await res.json();
         setItems(prev => prev.map(it => it.id === updated.id ? updated : it));
         setShowApptModal(false);
+        refreshTodayCount();
       }
     }
   };
@@ -893,6 +898,7 @@ export default function AppointmentPage() {
     if (res.status === 204 || res.ok) {
       setItems(prev => prev.filter(it => it.id !== id));
       setShowApptModal(false);
+      refreshTodayCount();
     }
   };
 

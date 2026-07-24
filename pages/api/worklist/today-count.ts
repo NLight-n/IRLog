@@ -1,0 +1,43 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getToken } from 'next-auth/jwt';
+import { prisma } from '../../../lib/prisma/prisma';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) return res.status(401).json({ message: 'Unauthorized' });
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  try {
+    const { date } = req.query;
+    let targetDateStr = typeof date === 'string' ? date : '';
+    if (!targetDateStr) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      targetDateStr = `${year}-${month}-${day}`;
+    }
+
+    const items = await prisma.workItem.findMany({
+      select: { dateScheduled: true },
+    });
+
+    const count = items.filter(item => {
+      if (!item.dateScheduled) return false;
+      const d = new Date(item.dateScheduled);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
+      return dateKey === targetDateStr;
+    }).length;
+
+    return res.status(200).json({ count });
+  } catch (error: any) {
+    console.error('Error fetching today count:', error);
+    return res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+}

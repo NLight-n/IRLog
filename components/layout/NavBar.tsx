@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { signOut } from 'next-auth/react';
 import { FiUser, FiSun, FiMoon, FiSettings, FiLogOut, FiHome, FiBarChart2, FiCalendar } from 'react-icons/fi';
 import UserProfileSidebar from '../modals/UserProfileSidebar';
+import { useAppointmentsCount } from '../../lib/appointmentsCountContext';
 
 const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeading = 'Interventional Radiology Register', appSubheading = '', appLogo = '' }: any, ref: Ref<HTMLElement>) {
   const router = useRouter();
@@ -22,6 +23,8 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
   const handleWorklist = () => router.push('/worklist');
   const [showProfile, setShowProfile] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(true);
+  const { todayCount } = useAppointmentsCount();
+  const displayCount = todayCount > 99 ? '99+' : todayCount;
 
   // Reset logoLoaded when appLogo changes
   React.useEffect(() => {
@@ -101,7 +104,14 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
             </button>
             <button onClick={handleHome} title="Home" className={`navbar-icon-btn ${currentPath === '/' ? 'active-nav' : ''}`}><FiHome /></button>
             <button onClick={handleAnalytics} title="Analytics" className={`navbar-icon-btn ${currentPath === '/analytics' ? 'active-nav' : ''}`}><FiBarChart2 /></button>
-            <button onClick={handleWorklist} title="Appointments" className={`navbar-icon-btn ${currentPath === '/worklist' ? 'active-nav' : ''}`}><FiCalendar /></button>
+            <button onClick={handleWorklist} title="Appointments" className={`navbar-icon-btn ${currentPath === '/worklist' ? 'active-nav' : ''}`} style={{ position: 'relative' }}>
+              <FiCalendar />
+              {todayCount > 0 && (
+                <span className="nav-badge-desktop">
+                  {displayCount}
+                </span>
+              )}
+            </button>
             <button onClick={handleSettings} title="Settings" className={`navbar-icon-btn ${currentPath === '/settings' ? 'active-nav' : ''}`}><FiSettings /></button>
             <button onClick={() => onToggleTheme(theme === 'dark' ? 'light' : 'dark')} title="Toggle Theme" className="navbar-icon-btn">
               {theme === 'dark' ? <FiSun /> : <FiMoon />}
@@ -150,7 +160,14 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
             className={`mobile-nav-btn ${currentPath === '/worklist' ? 'active' : ''}`}
             title="Appointments"
           >
-            <FiCalendar size={20} />
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FiCalendar size={20} />
+              {todayCount > 0 && (
+                <span className="nav-badge-mobile">
+                  {displayCount}
+                </span>
+              )}
+            </div>
             <span>Appts</span>
           </button>
 

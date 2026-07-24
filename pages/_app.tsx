@@ -5,6 +5,7 @@ import '../styles/global.css';
 import { ThemeProvider } from '../lib/theme/ThemeContext';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ColumnContext, defaultColumns } from '../lib/columnContext';
+import { AppointmentsCountProvider } from '../lib/appointmentsCountContext';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -140,7 +141,9 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       <ThemeProvider>
         <ColumnContext.Provider value={{ columns, setColumns }}>
           <AppSettingsContext.Provider value={{ appHeading, setAppHeading, appSubheading, setAppSubheading, appLogo, setAppLogo, refreshSettings }}>
-            <Component {...pageProps} />
+            <AppointmentsCountProvider>
+              <Component {...pageProps} />
+            </AppointmentsCountProvider>
           </AppSettingsContext.Provider>
         </ColumnContext.Provider>
       </ThemeProvider>
