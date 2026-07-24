@@ -381,9 +381,24 @@ export default function AppointmentPage() {
       }
     });
 
-    // Sort items within each day by displayOrder
+    const getStatusRank = (status: string) => {
+      if (status === 'Scheduled') return 0;
+      if (status === 'NotDone') return 1;
+      if (status === 'Done') return 2;
+      if (status === 'Cancelled') return 3;
+      return 4;
+    };
+
+    // Sort items within each day: Scheduled cases on top, Done/NotDone/Cancelled cases at the bottom
     Object.keys(map).forEach(key => {
-      map[key].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+      map[key].sort((a, b) => {
+        const rankA = getStatusRank(a.status);
+        const rankB = getStatusRank(b.status);
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+        return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+      });
     });
 
     return map;
@@ -916,6 +931,7 @@ export default function AppointmentPage() {
     if (res.ok) {
       const updated = await res.json();
       setItems(prev => prev.map(it => it.id === updated.id ? updated : it));
+      refreshTodayCount();
 
       // Prompt user whether to create an IRLog Register entry
       if (window.confirm(`Do you want to create an IRLog Register entry for ${item.patientName}?`)) {
@@ -962,6 +978,7 @@ export default function AppointmentPage() {
       setItems(prev => prev.map(it => it.id === updated.id ? updated : it));
       setShowNotDoneModal(false);
       setNotDoneItem(null);
+      refreshTodayCount();
     }
   };
 
@@ -993,6 +1010,7 @@ export default function AppointmentPage() {
       setShowCancelledModal(false);
       setCancelledItem(null);
       setActionCard(null);
+      refreshTodayCount();
     }
   };
 
@@ -1008,6 +1026,7 @@ export default function AppointmentPage() {
       const updated = await res.json();
       setItems(prev => prev.map(it => it.id === updated.id ? updated : it));
       setActionCard(null);
+      refreshTodayCount();
     }
   };
 

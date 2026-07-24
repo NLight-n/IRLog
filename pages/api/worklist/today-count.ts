@@ -24,10 +24,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const items = await prisma.workItem.findMany({
-      select: { dateScheduled: true },
+      select: { dateScheduled: true, status: true },
     });
 
     const count = items.filter(item => {
+      // Only count items with status 'Scheduled' (excludes Done, NotDone, Cancelled)
+      if (item.status !== 'Scheduled') return false;
       if (!item.dateScheduled) return false;
       const d = new Date(item.dateScheduled);
       
