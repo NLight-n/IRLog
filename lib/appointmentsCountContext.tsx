@@ -27,8 +27,10 @@ export const AppointmentsCountProvider: React.FC<{ children: React.ReactNode }> 
   const refreshTodayCount = useCallback(async () => {
     if (status !== 'authenticated') return;
     try {
-      const todayStr = formatDateKey(new Date());
-      const res = await fetch(`/api/worklist/today-count?date=${todayStr}`);
+      const now = new Date();
+      const todayStr = formatDateKey(now);
+      const tzOffset = now.getTimezoneOffset();
+      const res = await fetch(`/api/worklist/today-count?date=${todayStr}&tzOffset=${tzOffset}`);
       if (res.ok) {
         const data = await res.json();
         if (typeof data.count === 'number') {

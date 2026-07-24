@@ -11,7 +11,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { date } = req.query;
+    const { date, tzOffset } = req.query;
+    const offsetMin = typeof tzOffset === 'string' ? parseInt(tzOffset, 10) : null;
+
     let targetDateStr = typeof date === 'string' ? date : '';
     if (!targetDateStr) {
       const now = new Date();
@@ -28,10 +30,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const count = items.filter(item => {
       if (!item.dateScheduled) return false;
       const d = new Date(item.dateScheduled);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const dateKey = `${year}-${month}-${day}`;
+      
+      let dateKey = '';
+      if (offsetMin !== null && !isNaN(offsetMin)) {
+        // Adjust for client timezone offset (getTimezoneOffset returns minutes difference: UTC - local)
+        const clientLocalTime = new Date(d.getTime() - offsetMin * 60 * 1000);
+        const year = clientLocalTime.getUTCFullYear();
+        const month = String(clientLocalTime.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(clientLocalTime.getUTCDate()).padStart(2, '0');
+        dateKey = `${year}-${month}-${day}`;
+      } else {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dateKey = `${year}-${month}-${day}`;
+      }
       return dateKey === targetDateStr;
     }).length;
 
