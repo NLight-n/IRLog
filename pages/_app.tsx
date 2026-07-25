@@ -6,6 +6,9 @@ import { ThemeProvider } from '../lib/theme/ThemeContext';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ColumnContext, defaultColumns } from '../lib/columnContext';
 import { AppointmentsCountProvider } from '../lib/appointmentsCountContext';
+import { PWAProvider } from '../lib/pwaContext';
+import OfflineBanner from '../components/common/OfflineBanner';
+import PWAInstallBanner from '../components/common/PWAInstallBanner';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -113,40 +116,51 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
 
   // Register PWA Service Worker
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register(`${basePath}/sw.js`).catch(err => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const swUrl = `${basePath}/sw.js`;
+      if (document.readyState === 'complete') {
+        navigator.serviceWorker.register(swUrl).catch(err => {
           console.log('PWA ServiceWorker registration failed:', err);
         });
-      });
+      } else {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register(swUrl).catch(err => {
+            console.log('PWA ServiceWorker registration failed:', err);
+          });
+        });
+      }
     }
   }, []);
 
   return (
     <SessionProvider session={session} basePath={`${basePath}/api/auth`}>
-      <Head>
-        <title>IRLog</title>
-        <link rel="icon" href={`${basePath}/irLogo.svg`} type="image/svg+xml" />
-        <link rel="alternate icon" href={`${basePath}/favicon.ico`} />
-        <link rel="shortcut icon" href={`${basePath}/irLogo.svg`} />
-        <link rel="manifest" href={`${basePath}/manifest.json`} />
-        <link rel="apple-touch-icon" href={`${basePath}/icons/apple-touch-icon.png`} />
-        <meta name="theme-color" content="#3b82f6" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="IRLog" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </Head>
-      <ThemeProvider>
-        <ColumnContext.Provider value={{ columns, setColumns }}>
-          <AppSettingsContext.Provider value={{ appHeading, setAppHeading, appSubheading, setAppSubheading, appLogo, setAppLogo, refreshSettings }}>
-            <AppointmentsCountProvider>
-              <Component {...pageProps} />
-            </AppointmentsCountProvider>
-          </AppSettingsContext.Provider>
-        </ColumnContext.Provider>
-      </ThemeProvider>
+      <PWAProvider>
+        <Head>
+          <title>IRLog</title>
+          <link rel="icon" href={`${basePath}/irLogo.svg`} type="image/svg+xml" />
+          <link rel="alternate icon" href={`${basePath}/favicon.ico`} />
+          <link rel="shortcut icon" href={`${basePath}/irLogo.svg`} />
+          <link rel="manifest" href={`${basePath}/manifest.json`} />
+          <link rel="apple-touch-icon" href={`${basePath}/icons/apple-touch-icon.png`} />
+          <meta name="theme-color" content="#3b82f6" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+          <meta name="apple-mobile-web-app-title" content="IRLog" />
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        </Head>
+        <OfflineBanner />
+        <PWAInstallBanner />
+        <ThemeProvider>
+          <ColumnContext.Provider value={{ columns, setColumns }}>
+            <AppSettingsContext.Provider value={{ appHeading, setAppHeading, appSubheading, setAppSubheading, appLogo, setAppLogo, refreshSettings }}>
+              <AppointmentsCountProvider>
+                <Component {...pageProps} />
+              </AppointmentsCountProvider>
+            </AppSettingsContext.Provider>
+          </ColumnContext.Provider>
+        </ThemeProvider>
+      </PWAProvider>
     </SessionProvider>
   );
-} 
+}

@@ -1,12 +1,14 @@
 import React, { useState, forwardRef, Ref } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'next-auth/react';
-import { FiUser, FiSun, FiMoon, FiSettings, FiLogOut, FiHome, FiBarChart2, FiCalendar } from 'react-icons/fi';
+import { FiUser, FiSun, FiMoon, FiSettings, FiLogOut, FiHome, FiBarChart2, FiCalendar, FiDownload } from 'react-icons/fi';
 import UserProfileSidebar from '../modals/UserProfileSidebar';
 import { useAppointmentsCount } from '../../lib/appointmentsCountContext';
+import { usePWA } from '../../lib/pwaContext';
 
 const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeading = 'Interventional Radiology Register', appSubheading = '', appLogo = '' }: any, ref: Ref<HTMLElement>) {
   const router = useRouter();
+  const { isInstallable, isStandalone, promptInstall } = usePWA();
   const username = user?.username || user?.name || 'User';
   const role = user?.role || '';
   const displayName = role === 'Doctor' ? `Dr. ${username}` : username;
@@ -99,6 +101,15 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
           {/* Desktop Right Icons */}
           <div className="navbar-icons desktop-nav-icons flex items-center gap-4">
             <span className="text-gray-700 text-sm mr-2">Welcome, <span className="font-medium text-black">{displayName}</span></span>
+            {isInstallable && !isStandalone && (
+              <button
+                onClick={promptInstall}
+                title="Install IRLog App"
+                className="navbar-icon-btn text-blue-500 hover:text-blue-600 font-bold"
+              >
+                <FiDownload />
+              </button>
+            )}
             <button title="Profile" className="navbar-icon-btn" onClick={() => setShowProfile(true)}>
               <FiUser />
             </button>
@@ -121,6 +132,15 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
 
           {/* Mobile Top Right Actions */}
           <div className="mobile-top-actions flex items-center gap-2">
+            {isInstallable && !isStandalone && (
+              <button
+                onClick={promptInstall}
+                title="Install App"
+                className="navbar-icon-btn text-blue-500 font-bold"
+              >
+                <FiDownload />
+              </button>
+            )}
             <button title="Profile" className="navbar-icon-btn" onClick={() => setShowProfile(true)}>
               <FiUser />
             </button>

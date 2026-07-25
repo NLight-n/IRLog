@@ -1,13 +1,15 @@
 {
   "name": "IRLog - Interventional Radiology Register",
   "short_name": "IRLog",
-  "description": "Interventional Radiology Register and Appointment Scheduler",
+  "description": "Interventional Radiology Register, Procedure Logger, and Appointment Scheduler",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#18181b",
   "theme_color": "#3b82f6",
+  "categories": ["medical", "health", "productivity"],
   "icons": [
     {
       "src": "icons/icon-192x192.png",
@@ -26,6 +28,26 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Procedure Log",
+      "short_name": "Log",
+      "description": "View procedure logs",
+      "url": "./"
+    },
+    {
+      "name": "Appointments Worklist",
+      "short_name": "Appointments",
+      "description": "View scheduled IR appointments",
+      "url": "./worklist"
+    },
+    {
+      "name": "Analytics & Statistics",
+      "short_name": "Analytics",
+      "description": "View procedure analytics and reports",
+      "url": "./analytics"
     }
   ]
 }
