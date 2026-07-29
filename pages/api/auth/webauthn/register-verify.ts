@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const user = session.user as any;
-  const userId = user.id || user.userID;
+  const userId = parseInt(user.id || user.userID, 10);
   const { id, rawId, clientDataJSON, attestationObject } = req.body;
 
   if (!id || !rawId) {

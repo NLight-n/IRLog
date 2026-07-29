@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     challenge,
     rpName: 'IRLog Procedure Register',
     user: {
-      id: user.id || user.userID || 1,
+      id: parseInt(user.id || user.userID || '1', 10),
       username: user.username || user.name || user.email,
     },
   });
