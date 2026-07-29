@@ -66,7 +66,9 @@ export async function registerBiometricCredential(): Promise<{ ok: boolean; mess
       ],
       authenticatorSelection: {
         authenticatorAttachment: 'platform', // Built-in Face ID / Touch ID / Fingerprint
-        userVerification: 'preferred',
+        userVerification: 'required',
+        residentKey: 'required',
+        requireResidentKey: true,
       },
       timeout: 60000,
     };
@@ -127,7 +129,7 @@ export async function loginWithBiometrics(): Promise<{ ok: boolean; username?: s
       challenge: base64UrlToBuffer(options.challenge).buffer as ArrayBuffer,
       timeout: 60000,
       rpId: window.location.hostname,
-      userVerification: 'preferred',
+      userVerification: 'required',
     };
 
     // 2. Trigger device biometric prompt (Face ID / Fingerprint)
