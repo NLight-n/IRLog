@@ -10,17 +10,17 @@ WORKDIR /app
 
 # Accept build argument for Next.js build-time public environment variables
 ARG NEXT_PUBLIC_BASE_PATH
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # .env is excluded by .dockerignore, so create .env.production for Next.js
-RUN if [ -n "$NEXT_PUBLIC_BASE_PATH" ]; then \
-      echo "NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH" > .env.production; \
-      echo ">>> .env.production created with NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH"; \
-    else \
-      echo ">>> No NEXT_PUBLIC_BASE_PATH provided, skipping .env.production"; \
+RUN echo "NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH" > .env.production && \
+    if [ -n "$NEXT_PUBLIC_VAPID_PUBLIC_KEY" ]; then \
+      echo "NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY" >> .env.production; \
     fi
 
 RUN npx prisma generate
@@ -33,7 +33,9 @@ WORKDIR /app
 # Security best practices
 ENV NODE_ENV=production
 ARG NEXT_PUBLIC_BASE_PATH
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 

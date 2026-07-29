@@ -105,3 +105,53 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+// Background Push Notification Event Listener
+self.addEventListener('push', (event) => {
+  let data = { title: 'IRLog Alert', body: 'New update received.', url: '/worklist' };
+  
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
+    data: {
+      url: data.url || '/worklist'
+    },
+    vibrate: [100, 50, 100],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Handle push notification click and redirect user
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const redirectUrl = event.notification.data?.url || '/worklist';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a window is already open, focus it and redirect it
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(redirectUrl);
+          return client.focus();
+        }
+      }
+      // Otherwise, open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(redirectUrl);
+      }
+    })
+  );
+});

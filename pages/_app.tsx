@@ -86,9 +86,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   };
   useEffect(() => {
     refreshSettings();
-    import('../lib/notifications').then(({ checkAndSendDailySummary }) => {
-      checkAndSendDailySummary();
-    });
   }, []);
 
   useEffect(() => {

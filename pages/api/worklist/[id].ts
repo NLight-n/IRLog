@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '../../../lib/prisma/prisma';
 import { logAuditEvent } from '../../../lib/auditLogger';
+import { sendPushNotification } from '../../../lib/pushNotification';
 
 const STAGE_DATE_FIELD: Record<string, keyof import('@prisma/client').WorkItem> = {
   Pending: 'dateAdded',
@@ -76,6 +77,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       dataAfter: updated,
     });
 
+    // Send push notification for updates
+    const editorName = String((token as any).username || 'A user');
+    const patientName = updated.patientName || before.patientName || 'Unnamed Patient';
+    const modality = updated.modality || before.modality || 'IR';
+    const procedureName = updated.procedureName || before.procedureName || 'Procedure';
+
+    let bodyText = `${patientName}'s appointment details updated by ${editorName}`;
+    if (before.stage !== updated.stage) {
+      bodyText = `${patientName}'s appointment stage changed to ${updated.stage} by ${editorName}`;
+    }
+
+    await sendPushNotification({
+      excludeUserID: userId,
+      title: '✏️ Appointment Updated',
+      body: bodyText,
+      url: '/worklist',
+    }).catch(err => console.error('Failed to trigger push notification:', err));
+
     return res.status(200).json(updated);
   }
 
@@ -93,6 +112,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       affectedRowID: id,
       dataBefore: before,
     });
+
+    // Send push notification for deletion
+    const editorName = String((token as any).username || 'A user');
+    const patientName = before.patientName || 'Unnamed Patient';
+    const modality = before.modality || 'IR';
+    const procedureName = before.procedureName || 'Procedure';
+
+    await sendPushNotification({
+      excludeUserID: userId,
+      title: '❌ Appointment Cancelled',
+      body: `${patientName} (${procedureName} - ${modality}) cancelled by ${editorName}`,
+      url: '/worklist',
+    }).catch(err => console.error('Failed to trigger push notification:', err));
+
     return res.status(204).end();
   }
 

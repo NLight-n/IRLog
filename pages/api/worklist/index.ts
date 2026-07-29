@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '../../../lib/prisma/prisma';
 import { logAuditEvent } from '../../../lib/auditLogger';
+import { sendPushNotification } from '../../../lib/pushNotification';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
@@ -52,6 +53,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       affectedRowID: created.id,
       dataAfter: created,
     });
+
+    // Send push notification in background
+    const creatorName = String((token as any).username || 'A user');
+    const patientName = created.patientName || 'Unnamed Patient';
+    const modality = created.modality || 'IR';
+    const procedureName = created.procedureName || 'Procedure';
+
+    await sendPushNotification({
+      excludeUserID: userId,
+      title: '📅 New Appointment Scheduled',
+      body: `${patientName} scheduled for ${procedureName} (${modality}) by ${creatorName}`,
+      url: '/worklist',
+    }).catch(err => console.error('Failed to trigger push notification:', err));
+
     return res.status(201).json(created);
   }
 

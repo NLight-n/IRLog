@@ -50,6 +50,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
   const [formAccentColor, setFormAccentColor] = useState(accentColor);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsMessage, setPrefsMessage] = useState('');
+  const [notifPermission, setNotifPermission] = useState<string>('default');
 
   // New state for column preferences
   const [visibleColumns, setVisibleColumns] = useState<any[]>([]);
@@ -62,6 +63,27 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
   );
 
   const columnPrefsCardRef = useRef<HTMLDivElement>(null);
+
+  // Initialize notification permission status on open
+  useEffect(() => {
+    if (open && typeof window !== 'undefined') {
+      if (!('Notification' in window)) {
+        setNotifPermission('unsupported');
+      } else {
+        import('../../lib/notifications').then(({ checkPushSubscriptionStatus }) => {
+          checkPushSubscriptionStatus().then(isSubscribed => {
+            if (isSubscribed) {
+              setNotifPermission('granted');
+            } else if (Notification.permission === 'denied') {
+              setNotifPermission('denied');
+            } else {
+              setNotifPermission('default');
+            }
+          });
+        });
+      }
+    }
+  }, [open]);
 
   // On open, initialize visibleColumns from user columns or defaults
   useEffect(() => {
@@ -340,32 +362,73 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                   </button>
                 </div>
               </div>
-              {/* Daily Procedure Reminders Card */}
+              {/* Push Notifications Card */}
               <div className="card">
                 <div className="card-body">
-                  <h3 className="text-lg font-semibold mb-2">Daily Procedure Reminders</h3>
+                  <h3 className="text-lg font-semibold mb-2">Push Notifications</h3>
                   <p className="text-xs text-gray-500 mb-3">
-                    Receive a system push notification every morning listing all procedures scheduled for today.
+                    Receive real-time push notifications when appointments are scheduled, updated, or cancelled on the worklist.
                   </p>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const { requestNotificationPermission, checkAndSendDailySummary } = await import('../../lib/notifications');
-                      const granted = await requestNotificationPermission();
-                      if (granted) {
-                        await checkAndSendDailySummary(true);
-                        alert('Notifications enabled! Daily procedure summary sent.');
-                      } else {
-                        alert('Notification permissions were denied in browser settings.');
-                      }
-                    }}
-                    className="btn btn-secondary w-full flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    Enable Daily Procedure Reminders
-                  </button>
+                  {notifPermission === 'granted' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ padding: '8px 12px', background: 'var(--color-accent-subtle, rgba(59,130,246,0.1))', borderRadius: '8px', border: '1px solid var(--color-accent, #3b82f6)', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-accent, #3b82f6)', fontSize: 13, fontWeight: 500 }}>
+                        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Push Notifications are Enabled
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const { unsubscribeUserFromPush } = await import('../../lib/notifications');
+                          const res = await unsubscribeUserFromPush();
+                          if (res.ok) {
+                            setNotifPermission('default');
+                            alert('Push notifications disabled.');
+                          } else {
+                            alert(res.message);
+                          }
+                        }}
+                        className="btn btn-secondary w-full text-xs"
+                        style={{ padding: '6px 12px' }}
+                      >
+                        Disable Notifications
+                      </button>
+                    </div>
+                  )}
+                  {notifPermission === 'denied' && (
+                    <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid #ef4444', display: 'flex', alignItems: 'flex-start', gap: 8, color: '#ef4444', fontSize: 13 }}>
+                      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ marginTop: 2, flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                      <div>
+                        <strong>Notifications are Blocked:</strong> Please allow notifications for this website in your browser or device system settings to receive alerts.
+                      </div>
+                    </div>
+                  )}
+                  {notifPermission === 'unsupported' && (
+                    <div style={{ padding: '8px 12px', background: 'var(--color-gray-100, #f3f4f6)', borderRadius: '8px', border: '1px solid var(--color-gray-300, #d1d5db)', color: 'var(--color-text-muted, #6b7280)', fontSize: 13 }}>
+                      Notifications are not supported on this browser or device.
+                    </div>
+                  )}
+                  {(notifPermission === 'default' || notifPermission === '') && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const { subscribeUserToPush } = await import('../../lib/notifications');
+                        const res = await subscribeUserToPush();
+                        if (res.ok) {
+                          setNotifPermission('granted');
+                          alert('Push notifications enabled successfully!');
+                        } else {
+                          setNotifPermission('denied');
+                          alert(res.message);
+                        }
+                      }}
+                      className="btn btn-secondary w-full flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      Enable Push Notifications
+                    </button>
+                  )}
                 </div>
               </div>
 

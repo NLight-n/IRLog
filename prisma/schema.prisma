@@ -34,6 +34,7 @@ model User {
   workItemsCreated WorkItem[] @relation("WorkItemCreatedBy")
   workItemsUpdated WorkItem[] @relation("WorkItemUpdatedBy")
   authenticators   Authenticator[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Authenticator {
@@ -46,6 +47,15 @@ model Authenticator {
   credentialDeviceType String?
   transports           String?
   createdAt            DateTime @default(now())
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userID    Int
+  user      User     @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  endpoint  String   @unique
+  keys      Json     // Contains p256dh and auth
+  createdAt DateTime @default(now())
 }
 
 model Permission {
