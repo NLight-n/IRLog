@@ -5,6 +5,7 @@ import { useTheme } from '../lib/theme/ThemeContext';
 import { ColumnContext } from '../lib/columnContext';
 import { useAppSettings } from './_app';
 import { useRouter } from 'next/router';
+import BottomSheetModal from '../components/common/BottomSheetModal';
 
 const TABS = [
   { label: 'Physicians', value: 'physicians' },
@@ -294,20 +295,20 @@ export default function SettingsPage() {
   return (
     <div className={`min-h-screen bg-gray-50${theme === 'dark' ? ' dark' : ''}`}>
       <NavBar ref={navbarRef} user={session?.user || null} theme={theme} onToggleTheme={onToggleTheme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
-      <div className="container" style={{ paddingTop: navbarHeight + 8 }}>
+      <div className="container page-content-mobile" style={{ paddingTop: navbarHeight + 8, paddingBottom: 80 }}>
         <div className="page-header">
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Configure system preferences and manage data</p>
         </div>
         {/* Tab Navigation */}
         <div className="card mb-6">
-          <div className="card-body">
-            <div className="flex flex-wrap gap-2">
+          <div className="card-body py-3">
+            <div className="scroll-x-tabs settings-tabs-scroll gap-2">
               {TABS.map(t => (
                 <button
                   key={t.value}
                   onClick={() => setTab(t.value)}
-                  className={`btn ${tab === t.value ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn ${tab === t.value ? 'btn-primary' : 'btn-secondary'} whitespace-nowrap`}
                 >
                   {t.label}
                 </button>
@@ -316,7 +317,7 @@ export default function SettingsPage() {
                 <button
                   key="admin"
                   onClick={() => setTab('user-management')}
-                  className={`btn ${tab === 'user-management' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn ${tab === 'user-management' ? 'btn-primary' : 'btn-secondary'} whitespace-nowrap`}
                 >
                   Admin
                 </button>
@@ -354,22 +355,22 @@ export default function SettingsPage() {
             {tab === 'user-management' && isAdmin && (
               <>
                 {/* Admin Subtab Navigation */}
-                <div className="flex gap-2 mb-6 pb-4" style={{ borderBottom: '1px solid var(--color-gray-200)' }}>
+                <div className="scroll-x-tabs gap-2 mb-6 pb-2" style={{ borderBottom: '1px solid var(--color-gray-200)' }}>
                   <button
                     onClick={() => setAdminSubtab('system-settings')}
-                    className={`btn btn-sm ${adminSubtab === 'system-settings' ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`btn btn-sm ${adminSubtab === 'system-settings' ? 'btn-primary' : 'btn-secondary'} whitespace-nowrap`}
                   >
                     System Settings
                   </button>
                   <button
                     onClick={() => setAdminSubtab('user-management')}
-                    className={`btn btn-sm ${adminSubtab === 'user-management' ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`btn btn-sm ${adminSubtab === 'user-management' ? 'btn-primary' : 'btn-secondary'} whitespace-nowrap`}
                   >
                     User Management
                   </button>
                   <button
                     onClick={() => setAdminSubtab('backup')}
-                    className={`btn btn-sm ${adminSubtab === 'backup' ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`btn btn-sm ${adminSubtab === 'backup' ? 'btn-primary' : 'btn-secondary'} whitespace-nowrap`}
                   >
                     Backup
                   </button>
@@ -1516,140 +1517,133 @@ function AuditLogModal({ open, onClose, log, navbarHeight = 0 }: { open: boolean
     const beforeData = formatDataForDisplay(before, log.affectedTable) || {};
     const afterData = formatDataForDisplay(after, log.affectedTable) || {};
     return (
-      <div className="bg-gray-50 dark:bg-gray-900 dark:text-gray-100 rounded p-4 border">
-        <table className="table-fixed text-sm" style={{ width: '640px' }}>
-          <thead>
-            <tr>
-              <td colSpan={3} className="text-xs text-gray-500 pb-2">
-                Table: {getTableDisplayName(log.affectedTable)} &nbsp; | &nbsp; User: {log.user?.username || 'Unknown'}
-              </td>
-            </tr>
-            <tr className="border-b-2 border-gray-300">
-              <th className="text-left py-2 px-2 font-semibold text-gray-700" style={{ width: '160px', minWidth: '160px', maxWidth: '160px' }}>Field</th>
-              <th className="text-left py-2 px-2 font-semibold text-gray-700" style={{ width: '240px', minWidth: '240px', maxWidth: '240px' }}>Data Before</th>
-              <th className="text-left py-2 px-2 font-semibold text-gray-700" style={{ width: '240px', minWidth: '240px', maxWidth: '240px' }}>Data After</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allFields.map((key) => {
-              let beforeValue = beforeData[key];
-              let afterValue = afterData[key];
-              // Format values
-              const formatValue = (value: any, field: string) => {
-                if (value === null || value === undefined || value === '') return '';
-                if (typeof value === 'object' && value !== null) {
-                  // Special pretty print for 'procedure' and other objects
-                  return (
-                    <div className="whitespace-pre-line break-words">
-                      {Object.entries(value).map(([k, v]) => (
-                        <div key={k}>
-                          <span className="font-semibold">{k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span> {String(v)}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-                if (field === 'createdAt' || field === 'updatedAt' || field === 'procedureDate') {
-                  return new Date(value as string).toLocaleString();
-                }
-                return String(value);
-              };
-              // Compare for highlight
-              const isChanged = JSON.stringify(beforeValue) !== JSON.stringify(afterValue);
-              // Inline style for highlight
-              let highlightStyle = isChanged
-                ? { backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-contrast, #fff)' }
-                : undefined;
-              return (
-                <tr
-                  key={key}
-                  className="border-b border-gray-200 hover:bg-gray-100"
-                  style={highlightStyle}
-                >
-                  <td className="font-medium py-2 px-2 text-gray-700 break-words whitespace-pre-line align-top" style={{ width: '160px', minWidth: '160px', maxWidth: '160px' }}>
-                    {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str: string) => str.toUpperCase())}
-                  </td>
-                  <td className="py-2 px-2 text-gray-900 break-words whitespace-pre-line align-top" style={{ width: '240px', minWidth: '240px', maxWidth: '240px' }}>
-                    {formatValue(beforeValue, key)}
-                  </td>
-                  <td className="py-2 px-2 text-gray-900 break-words whitespace-pre-line align-top" style={{ width: '240px', minWidth: '240px', maxWidth: '240px' }}>
-                    {formatValue(afterValue, key)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="bg-gray-50 dark:bg-zinc-900 rounded-lg p-2 sm:p-4 border border-gray-200 dark:border-zinc-800">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full min-w-[500px] text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-gray-300 dark:border-zinc-700">
+                <th className="text-left py-2 px-3 font-semibold text-gray-700 dark:text-gray-300 w-1/3">Field</th>
+                <th className="text-left py-2 px-3 font-semibold text-gray-700 dark:text-gray-300 w-1/3">Data Before</th>
+                <th className="text-left py-2 px-3 font-semibold text-gray-700 dark:text-gray-300 w-1/3">Data After</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allFields.map((key) => {
+                let beforeValue = beforeData[key];
+                let afterValue = afterData[key];
+                // Format values
+                const formatValue = (value: any, field: string) => {
+                  if (value === null || value === undefined || value === '') return '-';
+                  if (typeof value === 'object' && value !== null) {
+                    // Special pretty print for 'procedure' and other objects
+                    return (
+                      <div className="whitespace-pre-line break-words text-xs">
+                        {Object.entries(value).map(([k, v]) => (
+                          <div key={k}>
+                            <span className="font-semibold">{k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span> {String(v)}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                  if (field === 'createdAt' || field === 'updatedAt' || field === 'procedureDate') {
+                    return new Date(value as string).toLocaleString();
+                  }
+                  return String(value);
+                };
+                // Compare for highlight
+                const isChanged = JSON.stringify(beforeValue) !== JSON.stringify(afterValue);
+
+                return (
+                  <tr
+                    key={key}
+                    className="border-b border-gray-200 dark:border-zinc-800 transition-colors"
+                    style={
+                      isChanged
+                        ? {
+                            backgroundColor: 'var(--color-accent)',
+                            color: 'var(--color-accent-contrast, #ffffff)',
+                          }
+                        : undefined
+                    }
+                  >
+                    <td
+                      className="font-semibold py-2.5 px-3 break-words whitespace-pre-line align-top"
+                      style={{
+                        color: isChanged ? 'var(--color-accent-contrast, #ffffff)' : 'var(--color-gray-700)',
+                      }}
+                    >
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str: string) => str.toUpperCase())}
+                    </td>
+                    <td
+                      className="py-2.5 px-3 break-words whitespace-pre-line align-top"
+                      style={{
+                        color: isChanged ? 'var(--color-accent-contrast, #ffffff)' : 'var(--color-gray-900)',
+                      }}
+                    >
+                      {formatValue(beforeValue, key)}
+                    </td>
+                    <td
+                      className="py-2.5 px-3 break-words whitespace-pre-line align-top font-semibold"
+                      style={{
+                        color: isChanged ? 'var(--color-accent-contrast, #ffffff)' : 'var(--color-gray-900)',
+                      }}
+                    >
+                      {formatValue(afterValue, key)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
 
-  if (!open) return null;
-
-  // Handler to close modal when clicking outside
-  function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
-    e.stopPropagation();
-    onClose();
-  }
-
-  function handleModalContentClick(e: React.MouseEvent<HTMLDivElement>) {
-    e.stopPropagation();
-  }
+  if (!open || !log) return null;
 
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50"
-      onClick={onClose}
+    <BottomSheetModal
+      open={open}
+      onClose={onClose}
+      title="Log Information"
+      maxWidth="720px"
     >
-      <div
-        className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-300 w-[50vw] max-w-[95vw] flex flex-col"
-        style={{
-          position: 'absolute',
-          top: navbarHeight + 8,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          minWidth: '360px',
-          maxWidth: '95vw',
-          width: '56vw',
-          maxHeight: `calc(100vh - ${navbarHeight + 16}px)`,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          zIndex: 1000
-        }}
-        role="dialog"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-          <h4 className="font-medium text-lg" style={{ paddingTop: '16px', paddingLeft: '24px' }}>Log Information</h4>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="text-gray-500 hover:text-gray-800 text-2xl font-bold focus:outline-none"
-            style={{ lineHeight: 1, marginRight: '24px' }}
-          >
-            ×
-          </button>
-        </div>
-        <div className="space-y-2 text-sm px-6 pt-4 pb-6 flex-shrink-0" style={{ paddingLeft: '24px', paddingBottom: '12px', paddingTop: '12px' }}>
-          <div><span className="font-medium">Timestamp:</span> {formatDate(log.timestamp)}</div>
-          <div><span className="font-medium">Action:</span>
-            <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${log.actionType === 'CREATE' ? 'bg-green-100 text-green-800' :
-              log.actionType === 'UPDATE' ? 'bg-blue-100 text-blue-800' :
-                'bg-red-100 text-red-800'
-              }`}>
+      <div className="space-y-4">
+        {/* Meta badges summary container */}
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-100 dark:bg-zinc-800/80 rounded-lg text-xs sm:text-sm border border-gray-200 dark:border-zinc-700">
+          <div>
+            <span className="font-semibold text-gray-500 dark:text-gray-400">Timestamp:</span>{' '}
+            <span className="font-medium text-gray-900 dark:text-gray-100">{formatDate(log.timestamp)}</span>
+          </div>
+          <div>
+            <span className="font-semibold text-gray-500 dark:text-gray-400">Action:</span>{' '}
+            <span className={`ml-1 px-2 py-0.5 rounded text-xs font-semibold ${
+              log.actionType === 'CREATE' ? 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300' :
+              log.actionType === 'UPDATE' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' :
+              'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+            }`}>
               {getActionDisplayName(log.actionType)}
             </span>
           </div>
+          <div>
+            <span className="font-semibold text-gray-500 dark:text-gray-400">Table:</span>{' '}
+            <span className="font-medium text-gray-900 dark:text-gray-100">{getTableDisplayName(log.affectedTable)}</span>
+          </div>
+          <div>
+            <span className="font-semibold text-gray-500 dark:text-gray-400">User:</span>{' '}
+            <span className="font-medium text-gray-900 dark:text-gray-100">{log.user?.username || 'Unknown'}</span>
+          </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 24, paddingRight: 24, paddingBottom: navbarHeight }}>
+
+        {/* Side-by-side diff table container */}
+        <div className="w-full">
           {renderSideBySideTable(log.dataBefore, log.dataAfter)}
         </div>
       </div>
-    </div>
+    </BottomSheetModal>
   );
 }
 

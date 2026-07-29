@@ -598,7 +598,7 @@ function ProcedureLogPage() {
     <div className={`min-h-screen bg-gray-50${theme === 'dark' ? ' dark' : ''}`}>
       <NavBar ref={navbarRef} user={session.user} onToggleTheme={onToggleTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
       {/* Make the main content area a flex column that fills the viewport */}
-      <div className="container flex flex-col" style={{ minHeight: 'calc(100vh - 64px)', paddingTop: navbarHeight + 8 }} ref={containerRef}>
+      <div className="container flex flex-col page-content-mobile" style={{ minHeight: 'calc(100vh - 64px)', paddingTop: navbarHeight + 8, paddingBottom: 80 }} ref={containerRef}>
         {/* Filter Card */}
         <div className="card mt-2 mb-4">
           <div className="card-body p-4">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { FiClock } from 'react-icons/fi';
 
 const defaultForm = {
@@ -31,6 +32,27 @@ function getCurrentTime() {
 }
 
 export default function ProcedureLogModal({ open, onClose, onSave, onDelete, initialData, userPermissions, viewOnly = false, onEdit, navbarHeight = 0 }: { open: boolean; onClose: () => void; onSave: (form: any) => void; onDelete: (id: string) => void; initialData: any; userPermissions: any; viewOnly: boolean; onEdit: () => void; navbarHeight: number }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.style.overflow = '';
+      document.body.classList.remove('modal-open');
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.classList.remove('modal-open');
+    };
+  }, [open]);
+
   const [form, setForm] = useState<any>(initialData ?? { ...defaultForm, procedureDate: getCurrentDate(), procedureTime: getCurrentTime() });
   const [procedures, setProcedures] = useState<any[]>([]);
   const [physicians, setPhysicians] = useState<any[]>([]);
@@ -249,7 +271,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, viewOnly, isEditing, initialData, handleSave, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const idToDelete = initialData?.procedureID || form?.procedureID;
 
@@ -268,17 +290,28 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     { value: 'DSA', label: 'Digital Subtraction Angiography (DSA)' },
   ];
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  return createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      onClick={onClose}
+      style={{
+        zIndex: 999999,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        transition: 'background-color 0.3s ease',
+      }}
+    >
       <div
         className="card max-w-4xl w-full mx-4 procedure-log-modal"
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute',
-          top: navbarHeight + 8,
+          top: navbarHeight ? navbarHeight + 8 : 12,
           left: 0,
           right: 0,
           margin: '0 auto',
-          maxHeight: `calc(100vh - ${navbarHeight + 16}px)`,
+          maxHeight: navbarHeight ? `calc(100vh - ${navbarHeight + 16}px)` : '92vh',
           overflowY: 'auto',
         }}
       >
@@ -859,6 +892,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 } 

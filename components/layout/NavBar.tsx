@@ -40,12 +40,12 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
   return (
     <>
       <nav ref={ref} className="navbar fixed-navbar">
-        <div className="container flex items-center justify-between py-4">
+        <div className="container flex items-center justify-between py-2.5 md:py-4">
           {/* Main heading with optional logo, clickable */}
           <div
             className="flex items-center select-none"
             onClick={handleHome}
-            style={{ cursor: 'pointer', minHeight: '3.5rem', gap: '0.75rem' }}
+            style={{ cursor: 'pointer', minHeight: '2.5rem', gap: '0.5rem' }}
           >
             {/* Logo - only show if loaded successfully */}
             {appLogo && logoLoaded && (
@@ -54,22 +54,17 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
                 alt=""
                 onError={() => setLogoLoaded(false)}
                 onLoad={() => setLogoLoaded(true)}
-                style={{
-                  height: '44px',
-                  width: 'auto',
-                  maxWidth: '120px',
-                  objectFit: 'contain',
-                  borderRadius: '4px',
-                }}
+                className="h-8 md:h-10 w-auto object-contain rounded"
+                style={{ height: '36px', maxHeight: '36px', width: 'auto', maxWidth: '80px', objectFit: 'contain', flexShrink: 0 }}
               />
             )}
             {/* Heading and subheading */}
-            <div className="flex flex-col justify-center">
+            <div className="flex flex-col justify-center min-w-0">
               <span
-                className="navbar-brand text-xl md:text-2xl font-extrabold"
+                className="navbar-brand text-base sm:text-xl md:text-2xl font-extrabold truncate"
                 style={{
                   fontFamily: `'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif`,
-                  letterSpacing: '0.04em',
+                  letterSpacing: '0.03em',
                   color: 'var(--color-accent)',
                   textShadow: 'none',
                   background: 'none',
@@ -83,11 +78,10 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
               </span>
               {appSubheading && (
                 <span
-                  className="navbar-subheading text-xs md:text-sm font-normal mt-0.5"
+                  className="navbar-subheading text-xs md:text-sm font-normal mt-0.5 truncate"
                   style={{
                     color: 'var(--color-accent)',
                     opacity: 0.8,
-                    fontSize: '0.9rem',
                     fontWeight: 400,
                     letterSpacing: '0.01em',
                   }}

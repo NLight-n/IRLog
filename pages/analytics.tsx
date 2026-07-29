@@ -140,74 +140,123 @@ export default function AnalyticsPage() {
   return (
     <>
       <NavBar ref={navbarRef} user={session?.user} onToggleTheme={setTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
-      <div className="container" style={{ maxWidth: 1100, margin: '0 auto', paddingTop: navbarHeight + 8 }}>
+      <div className="container page-content-mobile" style={{ maxWidth: 1100, margin: '0 auto', paddingTop: navbarHeight + 8, paddingBottom: 80 }}>
         <h2 className="mb-6" style={{ color: 'var(--color-accent)' }}>Analytics</h2>
         {/* Monthly Trends Card */}
         <div className="card mb-8" style={{ padding: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 className="mb-0 text-lg font-medium">Monthly Trends</h4>
-            <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="monthly-modality">Modality</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h4 className="mb-0 text-lg font-medium">Monthly Trends</h4>
+              {/* Header Navigation Arrows (Mobile view) */}
+              <div className="analytics-header-nav" style={{ gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setMonthOffset(prev => prev + 1)}
+                  title="Show older months"
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--color-border, #d1d5db)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    padding: '4px 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-accent)',
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRightArrowClick}
+                  disabled={monthOffset === 0}
+                  title={monthOffset === 0 ? 'Already showing latest data' : 'Show newer months (double-click to reset)'}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--color-border, #d1d5db)',
+                    borderRadius: '8px',
+                    cursor: monthOffset === 0 ? 'not-allowed' : 'pointer',
+                    padding: '4px 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: monthOffset === 0 ? 'var(--color-text-muted, #9ca3af)' : 'var(--color-accent)',
+                    opacity: monthOffset === 0 ? 0.5 : 1,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label className="block text-sm font-medium" htmlFor="monthly-modality" style={{ margin: 0 }}>Modality</label>
               <select id="monthly-modality" className="form-input" value={monthlyModality} onChange={e => setMonthlyModality(e.target.value)}>
                 {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-            {/* Left Arrow - go to older months */}
-            <button
-              type="button"
-              onClick={() => setMonthOffset(prev => prev + 1)}
-              title="Show older months"
-              style={{
-                background: 'none',
-                border: '1px solid var(--color-border, #d1d5db)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                padding: '8px 6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-accent)',
-                flexShrink: 0,
-                transition: 'background 0.2s, transform 0.15s',
-                marginRight: 4,
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
+            {/* Left Arrow - Desktop Side Nav */}
+            <div className="analytics-chart-side-nav">
+              <button
+                type="button"
+                onClick={() => setMonthOffset(prev => prev + 1)}
+                title="Show older months"
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--color-border, #d1d5db)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  padding: '8px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--color-accent)',
+                  flexShrink: 0,
+                  transition: 'background 0.2s, transform 0.15s',
+                  marginRight: 4,
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+            </div>
+
             {/* Chart */}
             <div style={{ flex: 1, minWidth: 0 }}>
               {monthly.loading ? <div>Loading...</div> : monthly.error ? <div style={{ color: 'red' }}>{monthly.error}</div> : monthly.data && <Chart type="line" labels={monthly.data.labels} series={monthly.data.series} title="Monthly Trends" height={380} highlightLabel={currentMonthLabel} isDarkMode={theme === 'dark'} />}
             </div>
-            {/* Right Arrow - go to newer months */}
-            <button
-              type="button"
-              onClick={handleRightArrowClick}
-              disabled={monthOffset === 0}
-              title={monthOffset === 0 ? 'Already showing latest data' : 'Show newer months (double-click to reset)'}
-              style={{
-                background: 'none',
-                border: '1px solid var(--color-border, #d1d5db)',
-                borderRadius: '8px',
-                cursor: monthOffset === 0 ? 'not-allowed' : 'pointer',
-                padding: '8px 6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: monthOffset === 0 ? 'var(--color-text-muted, #9ca3af)' : 'var(--color-accent)',
-                opacity: monthOffset === 0 ? 0.5 : 1,
-                flexShrink: 0,
-                transition: 'background 0.2s, transform 0.15s, opacity 0.2s',
-                marginLeft: 4,
-              }}
-              onMouseEnter={e => { if (monthOffset > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
+
+            {/* Right Arrow - Desktop Side Nav */}
+            <div className="analytics-chart-side-nav">
+              <button
+                type="button"
+                onClick={handleRightArrowClick}
+                disabled={monthOffset === 0}
+                title={monthOffset === 0 ? 'Already showing latest data' : 'Show newer months (double-click to reset)'}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--color-border, #d1d5db)',
+                  borderRadius: '8px',
+                  cursor: monthOffset === 0 ? 'not-allowed' : 'pointer',
+                  padding: '8px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: monthOffset === 0 ? 'var(--color-text-muted, #9ca3af)' : 'var(--color-accent)',
+                  opacity: monthOffset === 0 ? 0.5 : 1,
+                  flexShrink: 0,
+                  transition: 'background 0.2s, transform 0.15s, opacity 0.2s',
+                  marginLeft: 4,
+                }}
+                onMouseEnter={e => { if (monthOffset > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            </div>
           </div>
           {/* Range indicator */}
           {monthly.data && monthly.data.labels.length > 0 && monthOffset > 0 && (
@@ -234,70 +283,119 @@ export default function AnalyticsPage() {
         </div>
         {/* Daily Trends Card */}
         <div className="card mb-8" style={{ padding: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 className="mb-0 text-lg font-medium">Daily Trends{daily.data?.monthLabel ? ` — ${daily.data.monthLabel}` : ''}</h4>
-            <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="daily-modality">Modality</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h4 className="mb-0 text-lg font-medium">Daily Trends{daily.data?.monthLabel ? ` — ${daily.data.monthLabel}` : ''}</h4>
+              {/* Header Navigation Arrows (Mobile view) */}
+              <div className="analytics-header-nav" style={{ gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setDailyOffset(prev => prev + 1)}
+                  title="Show previous month"
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--color-border, #d1d5db)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    padding: '4px 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-accent)',
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDailyRightArrowClick}
+                  disabled={dailyOffset === 0}
+                  title={dailyOffset === 0 ? 'Already showing current month' : 'Show next month (double-click to reset)'}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--color-border, #d1d5db)',
+                    borderRadius: '8px',
+                    cursor: dailyOffset === 0 ? 'not-allowed' : 'pointer',
+                    padding: '4px 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: dailyOffset === 0 ? 'var(--color-text-muted, #9ca3af)' : 'var(--color-accent)',
+                    opacity: dailyOffset === 0 ? 0.5 : 1,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label className="block text-sm font-medium" htmlFor="daily-modality" style={{ margin: 0 }}>Modality</label>
               <select id="daily-modality" className="form-input" value={dailyModality} onChange={e => setDailyModality(e.target.value)}>
                 {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-            {/* Left Arrow - go to previous month */}
-            <button
-              type="button"
-              onClick={() => setDailyOffset(prev => prev + 1)}
-              title="Show previous month"
-              style={{
-                background: 'none',
-                border: '1px solid var(--color-border, #d1d5db)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                padding: '8px 6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-accent)',
-                flexShrink: 0,
-                transition: 'background 0.2s, transform 0.15s',
-                marginRight: 4,
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
+            {/* Left Arrow - Desktop Side Nav */}
+            <div className="analytics-chart-side-nav">
+              <button
+                type="button"
+                onClick={() => setDailyOffset(prev => prev + 1)}
+                title="Show previous month"
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--color-border, #d1d5db)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  padding: '8px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--color-accent)',
+                  flexShrink: 0,
+                  transition: 'background 0.2s, transform 0.15s',
+                  marginRight: 4,
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+            </div>
+
             {/* Chart */}
             <div style={{ flex: 1, minWidth: 0 }}>
               {daily.loading ? <div>Loading...</div> : daily.error ? <div style={{ color: 'red' }}>{daily.error}</div> : daily.data && <Chart type="bar" labels={daily.data.labels} series={daily.data.series} title={`Daily Trends \u2014 ${daily.data.monthLabel || ''}`} height={380} stacked highlightLabel={dailyOffset === 0 ? currentDayLabel : undefined} isDarkMode={theme === 'dark'} />}
             </div>
-            {/* Right Arrow - go to next month */}
-            <button
-              type="button"
-              onClick={handleDailyRightArrowClick}
-              disabled={dailyOffset === 0}
-              title={dailyOffset === 0 ? 'Already showing current month' : 'Show next month (double-click to reset)'}
-              style={{
-                background: 'none',
-                border: '1px solid var(--color-border, #d1d5db)',
-                borderRadius: '8px',
-                cursor: dailyOffset === 0 ? 'not-allowed' : 'pointer',
-                padding: '8px 6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: dailyOffset === 0 ? 'var(--color-text-muted, #9ca3af)' : 'var(--color-accent)',
-                opacity: dailyOffset === 0 ? 0.5 : 1,
-                flexShrink: 0,
-                transition: 'background 0.2s, transform 0.15s, opacity 0.2s',
-                marginLeft: 4,
-              }}
-              onMouseEnter={e => { if (dailyOffset > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
+
+            {/* Right Arrow - Desktop Side Nav */}
+            <div className="analytics-chart-side-nav">
+              <button
+                type="button"
+                onClick={handleDailyRightArrowClick}
+                disabled={dailyOffset === 0}
+                title={dailyOffset === 0 ? 'Already showing current month' : 'Show next month (double-click to reset)'}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--color-border, #d1d5db)',
+                  borderRadius: '8px',
+                  cursor: dailyOffset === 0 ? 'not-allowed' : 'pointer',
+                  padding: '8px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: dailyOffset === 0 ? 'var(--color-text-muted, #9ca3af)' : 'var(--color-accent)',
+                  opacity: dailyOffset === 0 ? 0.5 : 1,
+                  flexShrink: 0,
+                  transition: 'background 0.2s, transform 0.15s, opacity 0.2s',
+                  marginLeft: 4,
+                }}
+                onMouseEnter={e => { if (dailyOffset > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-accent-subtle, rgba(59,130,246,0.1))'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            </div>
           </div>
           {/* Range indicator */}
           {daily.data && dailyOffset > 0 && (

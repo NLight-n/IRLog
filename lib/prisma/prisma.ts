@@ -6,4 +6,6 @@ export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
     log: ['query', 'info', 'warn', 'error'],
-  }); 
+  });
+
+export default prisma; 

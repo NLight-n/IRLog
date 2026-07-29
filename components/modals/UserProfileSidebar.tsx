@@ -255,20 +255,20 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-end transition-all ${open ? '' : 'pointer-events-none'}`}
-      style={{ background: open ? 'rgba(0,0,0,0.3)' : 'transparent', visibility: open ? 'visible' : 'hidden' }}
+      className={`fixed inset-0 flex justify-end transition-all ${open ? '' : 'pointer-events-none'}`}
+      style={{ zIndex: 9999, background: open ? 'rgba(0,0,0,0.5)' : 'transparent', backdropFilter: open ? 'blur(4px)' : 'none', WebkitBackdropFilter: open ? 'blur(4px)' : 'none', visibility: open ? 'visible' : 'hidden' }}
       onClick={onClose}
     >
       <div
-        className={`bg-gray-50 dark:bg-gray-900 shadow-lg h-full w-full max-w-md transition-transform duration-300 ease-in-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
-        style={{ minWidth: 350, maxWidth: 420 }}
+        className={`bg-gray-50 dark:bg-gray-900 shadow-lg h-full w-full max-w-md user-profile-sidebar-mobile transition-transform duration-300 ease-in-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <h2 className="text-xl font-bold">User Profile</h2>
           <button onClick={onClose} className="text-2xl font-bold text-gray-500 hover:text-gray-800">×</button>
         </div>
-        <div className="space-y-6 p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="space-y-6 p-4 overflow-y-auto flex-1" style={{ maxHeight: 'calc(100vh - 64px)', paddingBottom: '120px' }}>
           {!session ? (
             <div className="text-center text-gray-500">Not logged in.</div>
           ) : !profile ? (
@@ -313,6 +313,62 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                   </form>
                 </div>
               </div>
+              {/* Biometric Login Registration Card */}
+              <div className="card">
+                <div className="card-body">
+                  <h3 className="text-lg font-semibold mb-2">Biometric Login</h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Register this device's Face ID, Touch ID, or Fingerprint reader for 1-touch sign-in without typing passwords.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { registerBiometricCredential } = await import('../../lib/auth/webauthn');
+                      const res = await registerBiometricCredential();
+                      if (res.ok) {
+                        alert(res.message);
+                      } else {
+                        alert(res.message);
+                      }
+                    }}
+                    className="btn btn-secondary w-full flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457-.315-2.84-.875-4.087" />
+                    </svg>
+                    Register Biometrics for this Device
+                  </button>
+                </div>
+              </div>
+              {/* Daily Procedure Reminders Card */}
+              <div className="card">
+                <div className="card-body">
+                  <h3 className="text-lg font-semibold mb-2">Daily Procedure Reminders</h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Receive a system push notification every morning listing all procedures scheduled for today.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { requestNotificationPermission, checkAndSendDailySummary } = await import('../../lib/notifications');
+                      const granted = await requestNotificationPermission();
+                      if (granted) {
+                        await checkAndSendDailySummary(true);
+                        alert('Notifications enabled! Daily procedure summary sent.');
+                      } else {
+                        alert('Notification permissions were denied in browser settings.');
+                      }
+                    }}
+                    className="btn btn-secondary w-full flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Enable Daily Procedure Reminders
+                  </button>
+                </div>
+              </div>
+
               {/* Role & Permissions Card */}
               <div className="card">
                 <div className="card-body">
@@ -354,7 +410,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
               <div className="card" ref={columnPrefsCardRef}>
                 <div className="card-body">
                   <h4 className="mb-2 font-semibold">Column Preferences</h4>
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 column-prefs-layout">
                     {/* Available Columns */}
                     <div className="flex-1">
                       <div className="font-medium mb-1">Available</div>
@@ -387,7 +443,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                       </ul>
                     </div>
                     {/* Controls */}
-                    <div className="flex flex-col justify-center gap-2">
+                    <div className="flex flex-col justify-center gap-2 column-prefs-controls">
                       <button className="btn btn-secondary" style={{background: accentBg, color: accentText, borderColor: accentBg}} onClick={handleAddColumn} disabled={!selectedAvailable}> &gt;&gt; </button>
                       <button className="btn btn-secondary" style={{background: accentBg, color: accentText, borderColor: accentBg}} onClick={handleRemoveColumn} disabled={!selectedVisible}> &lt;&lt; </button>
                       <button className="btn btn-secondary" style={{background: accentBg, color: accentText, borderColor: accentBg}} onClick={handleMoveUp} disabled={!selectedVisible}> ↑ </button>

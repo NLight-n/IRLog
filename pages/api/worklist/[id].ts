@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const id = parseInt(req.query.id as string);
   if (isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
 
-  if (req.method === 'PATCH') {
+  if (req.method === 'PATCH' || req.method === 'PUT') {
     if (!userId) return res.status(401).json({ message: 'Invalid user ID' });
     const dbPerms = await prisma.permission.findFirst({ where: { userID: userId } });
     if (!dbPerms?.editProcedureLog) return res.status(403).json({ message: 'Forbidden' });

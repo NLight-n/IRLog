@@ -33,6 +33,19 @@ model User {
   columns      Json?
   workItemsCreated WorkItem[] @relation("WorkItemCreatedBy")
   workItemsUpdated WorkItem[] @relation("WorkItemUpdatedBy")
+  authenticators   Authenticator[]
+}
+
+model Authenticator {
+  id                   Int      @id @default(autoincrement())
+  credentialID         String   @unique
+  userID               Int
+  user                 User     @relation(fields: [userID], references: [userID], onDelete: Cascade)
+  credentialPublicKey  String
+  counter              Int      @default(0)
+  credentialDeviceType String?
+  transports           String?
+  createdAt            DateTime @default(now())
 }
 
 model Permission {

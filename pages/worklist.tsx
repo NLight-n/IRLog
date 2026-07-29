@@ -9,6 +9,7 @@ import { useAppSettings } from './_app';
 import { useTheme } from '../lib/theme/ThemeContext';
 import ProcedureLogModal from '../components/modals/ProcedureLogModal';
 import { useAppointmentsCount } from '../lib/appointmentsCountContext';
+import BottomSheetModal from '../components/common/BottomSheetModal';
 
 type AppointmentItem = {
   id: number;
@@ -168,6 +169,44 @@ export default function AppointmentPage() {
   // IRLog Procedure Log Modal state
   const [showProcedureLogModal, setShowProcedureLogModal] = useState(false);
   const [procedureLogInitialData, setProcedureLogInitialData] = useState<any>(null);
+
+  // Dynamic NavBar Height Measurement
+  const navbarRef = useRef<HTMLDivElement>(null);
+  const [navbarHeight, setNavbarHeight] = useState(0);
+
+  useEffect(() => {
+    let frame: number;
+    let lastHeight = 0;
+    let stableCount = 0;
+    function measure() {
+      if (navbarRef.current) {
+        const h = navbarRef.current.offsetHeight;
+        if (h !== lastHeight) {
+          lastHeight = h;
+          stableCount = 0;
+          setNavbarHeight(h);
+        } else {
+          stableCount++;
+        }
+        if (stableCount < 3) {
+          frame = requestAnimationFrame(measure);
+        }
+      }
+    }
+    function updateNavbarHeight() {
+      lastHeight = 0;
+      stableCount = 0;
+      frame = requestAnimationFrame(measure);
+    }
+    updateNavbarHeight();
+    window.addEventListener('resize', updateNavbarHeight);
+    router.events?.on('routeChangeComplete', updateNavbarHeight);
+    return () => {
+      window.removeEventListener('resize', updateNavbarHeight);
+      router.events?.off('routeChangeComplete', updateNavbarHeight);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [router.events]);
 
   // Load appointments and procedure list from API
   const loadAppointments = async () => {
@@ -596,7 +635,7 @@ export default function AppointmentPage() {
       appointmentTime: formState.appointmentTime || null,
       dateScheduled: formState.dateScheduled ? new Date(`${formState.dateScheduled}T00:00:00`).toISOString() : new Date().toISOString(),
       notes: formState.notes || null,
-      status: 'Scheduled',
+      status: apptModalMode === 'edit' && editingItem ? editingItem.status : 'Scheduled',
     };
 
     if (apptModalMode === 'create') {
@@ -613,7 +652,7 @@ export default function AppointmentPage() {
       }
     } else if (apptModalMode === 'edit' && editingItem) {
       const res = await fetch(`/api/worklist/${editingItem.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -1046,8 +1085,8 @@ export default function AppointmentPage() {
   if (status === 'loading' || loading) {
     return (
       <div>
-        <NavBar user={session?.user} onToggleTheme={setTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
-        <div style={{ paddingTop: 96, paddingInline: 16, textAlign: 'center', color: 'var(--color-gray-600)' }}>
+        <NavBar ref={navbarRef} user={session?.user} onToggleTheme={setTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
+        <div style={{ paddingTop: (navbarHeight || 64) + 24, paddingInline: 16, textAlign: 'center', color: 'var(--color-gray-600)' }}>
           Loading appointments schedule...
         </div>
       </div>
@@ -1056,54 +1095,177 @@ export default function AppointmentPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-gray-50)', color: 'var(--color-gray-900)', display: 'flex', flexDirection: 'column' }}>
-      <NavBar user={session?.user} onToggleTheme={setTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
+      <NavBar ref={navbarRef} user={session?.user} onToggleTheme={setTheme} theme={theme} appHeading={appHeading} appSubheading={appSubheading} appLogo={appLogo} />
 
-      <div style={{ paddingTop: 80, paddingInline: 16, paddingBottom: 24, flex: 1, display: 'flex', flexDirection: 'column' }}>
-        
-        {/* Header Row 1: Title on Left, Action Buttons on Right */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 12, width: '100%' }}>
-          {/* Title & Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-gray-900)' }}>Procedure Appointments</h2>
+      <div className="page-content-mobile" style={{ paddingTop: (navbarHeight || 64) + 12, paddingInline: 16, paddingBottom: 80, flex: 1, display: 'flex', flexDirection: 'column' }}>
+           {/* Worklist Header & Controls */}
+        <div className="worklist-header-wrapper">
+          
+          {/* Row 1: Title & 7-Day View Tag */}
+          <div className="worklist-header-title-row">
+            <h2 className="worklist-title" style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-gray-900)' }}>Procedure Appointments</h2>
             <span style={{
               background: 'var(--color-accent)',
               color: 'var(--color-accent-contrast, #fff)',
               borderRadius: 20,
               padding: '2px 10px',
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 700,
             }}>
               7-Day View
             </span>
           </div>
 
-          {/* Right Action Buttons Group */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-            {/* Export Data Button */}
-            <button
-              onClick={() => setShowExportModal(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'var(--color-gray-100)',
-                color: 'var(--color-gray-900)',
-                border: '1px solid var(--color-gray-300)',
-                borderRadius: 8,
-                padding: '8px 14px',
-                fontWeight: 600,
-                fontSize: 13,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <FiDownload size={15} /> Export Audit
-            </button>
+          {/* Row 2: Controls Container */}
+          <div className="worklist-controls-row">
+            
+            {/* Left Controls: Navigation, Date Picker, Search Box (Row 3 on mobile) */}
+            <div className="worklist-left-controls">
+              {/* Prev / Today / Next */}
+              <div className="date-nav-group" style={{ display: 'flex', alignItems: 'center', background: 'var(--color-white)', border: '1px solid var(--color-gray-300)', borderRadius: 8, padding: '2px 6px' }}>
+                <button
+                  onClick={handlePrevWeek}
+                  title="Previous 7 Days"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
+                >
+                  <FiChevronLeft size={18} />
+                </button>
+                <button
+                  onClick={handleGoToday}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    padding: '4px 10px',
+                    color: 'var(--color-accent)',
+                  }}
+                >
+                  Today
+                </button>
+                <button
+                  onClick={handleNextWeek}
+                  title="Next 7 Days"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
+                >
+                  <FiChevronRight size={18} />
+                </button>
+              </div>
 
-            {/* Holiday List Button */}
-            {canEdit && (
+              {/* Jump to Date Picker */}
+              <input
+                type="date"
+                value={formatDateKey(startDate)}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setStartDate(new Date(`${e.target.value}T00:00:00`));
+                  }
+                }}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid var(--color-gray-300)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  background: 'var(--color-white)',
+                  color: 'var(--color-gray-900)'
+                }}
+              />
+
+              {/* Search Input with Global Dropdown */}
+              <div ref={searchContainerRef} className="search-input-wrapper" style={{ position: 'relative' }}>
+                <FiSearch style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-gray-400)' }} />
+                <input
+                  type="text"
+                  placeholder="Search all appointments..."
+                  value={searchText}
+                  onFocus={() => setShowSearchDropdown(true)}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    setShowSearchDropdown(true);
+                  }}
+                  style={{
+                    padding: '6px 12px 6px 32px',
+                    border: '1px solid var(--color-gray-300)',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    width: 230,
+                    background: 'var(--color-white)',
+                    color: 'var(--color-gray-900)'
+                  }}
+                />
+
+                {/* Global Search Results Dropdown Popup */}
+                {showSearchDropdown && searchText.trim().length > 0 && (
+                  <div className="search-dropdown-popup">
+                    {globalSearchResults.length === 0 ? (
+                      <div style={{ padding: 14, fontSize: 13, color: 'var(--color-gray-500)', textAlign: 'center' }}>
+                        No matching appointments found.
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-gray-500)', borderBottom: '1px solid var(--color-gray-200)', background: 'var(--color-gray-50)' }}>
+                          Search Results ({globalSearchResults.length})
+                        </div>
+                        {globalSearchResults.map((item) => {
+                          const dateStr = item.dateScheduled ? new Date(item.dateScheduled).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'Unscheduled';
+                          const isDone = item.status === 'Done';
+                          const isNotDone = item.status === 'NotDone';
+                          const isCancelled = item.status === 'Cancelled';
+                          const statusLabel = isDone ? 'Done' : isNotDone ? 'Not Done' : isCancelled ? 'Cancelled' : 'Scheduled';
+                          const statusBg = isDone ? '#dcfce7' : isNotDone ? '#fef3c7' : isCancelled ? '#fee2e2' : '#dbeafe';
+                          const statusColor = isDone ? '#15803d' : isNotDone ? '#92400e' : isCancelled ? '#b91c1c' : '#1e40af';
+
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => handleSelectSearchResult(item)}
+                              style={{
+                                padding: '10px 14px',
+                                borderBottom: '1px solid var(--color-gray-100)',
+                                cursor: 'pointer',
+                                transition: 'background 0.15s ease',
+                              }}
+                              className="hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-gray-900)' }}>{item.patientName}</div>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: statusBg, color: statusColor }}>
+                                  {statusLabel}
+                                </span>
+                              </div>
+
+                              <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                <span style={{ fontWeight: 600 }}>ID: {item.patientID}</span>
+                                {(item.patientAge != null || item.patientSex) && (
+                                  <span>• {item.patientAge != null ? `${item.patientAge}Y` : ''}{item.patientSex ? `/${item.patientSex}` : ''}</span>
+                                )}
+                              </div>
+
+                              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{item.procedureName} {item.modality ? `[${item.modality}]` : ''}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-gray-600)', background: 'var(--color-gray-100)', padding: '1px 6px', borderRadius: 4 }}>📅 {dateStr}</span>
+                              </div>
+
+                              {item.notDoneReason && (
+                                <div style={{ fontSize: 11, color: isCancelled ? '#b91c1c' : '#92400e', fontStyle: 'italic', marginTop: 3 }}>
+                                  Reason: {item.notDoneReason}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons Group */}
+            <div className="worklist-action-buttons">
               <button
-                onClick={() => setShowHolidayModal(true)}
+                onClick={() => setShowExportModal(true)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1119,198 +1281,55 @@ export default function AppointmentPage() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                🌴 Holiday List
+                <FiDownload size={15} /> Export Audit
               </button>
-            )}
 
-            {/* Add New Appointment Button */}
-            {canEdit && (
-              <button
-                onClick={() => openCreateModal()}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'var(--color-accent)',
-                  color: 'var(--color-accent-contrast, #fff)',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '8px 14px',
-                  fontWeight: 600,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <FiPlus size={16} /> Add Appointment
-              </button>
-            )}
-          </div>
-        </div>
+              {canEdit && (
+                <button
+                  onClick={() => setShowHolidayModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'var(--color-gray-100)',
+                    color: 'var(--color-gray-900)',
+                    border: '1px solid var(--color-gray-300)',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🌴 Holiday List
+                </button>
+              )}
 
-        {/* Header Row 2: Left Navigation Controls (Date Nav, Date Picker, Search) */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16, width: '100%' }}>
-          {/* Prev / Today / Next */}
-          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-white)', border: '1px solid var(--color-gray-300)', borderRadius: 8, padding: '2px 6px' }}>
-            <button
-              onClick={handlePrevWeek}
-              title="Previous 7 Days"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
-            >
-              <FiChevronLeft size={18} />
-            </button>
-            <button
-              onClick={handleGoToday}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: 13,
-                padding: '4px 10px',
-                color: 'var(--color-accent)',
-              }}
-            >
-              Today
-            </button>
-            <button
-              onClick={handleNextWeek}
-              title="Next 7 Days"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: 'var(--color-gray-700)' }}
-            >
-              <FiChevronRight size={18} />
-            </button>
-          </div>
+              {canEdit && (
+                <button
+                  onClick={() => openCreateModal()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'var(--color-accent)',
+                    color: 'var(--color-accent-contrast, #fff)',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <FiPlus size={16} /> Add Appointment
+                </button>
+              )}
+            </div>
 
-          {/* Jump to Date Picker */}
-          <input
-            type="date"
-            value={formatDateKey(startDate)}
-            onChange={(e) => {
-              if (e.target.value) {
-                setStartDate(new Date(`${e.target.value}T00:00:00`));
-              }
-            }}
-            style={{
-              padding: '6px 10px',
-              border: '1px solid var(--color-gray-300)',
-              borderRadius: 8,
-              fontSize: 13,
-              background: 'var(--color-white)',
-              color: 'var(--color-gray-900)'
-            }}
-          />
-
-          {/* Search Input with Global Dropdown */}
-          <div ref={searchContainerRef} style={{ position: 'relative' }}>
-            <FiSearch style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-gray-400)' }} />
-            <input
-              type="text"
-              placeholder="Search all appointments..."
-              value={searchText}
-              onFocus={() => setShowSearchDropdown(true)}
-              onChange={(e) => {
-                setSearchText(e.target.value);
-                setShowSearchDropdown(true);
-              }}
-              style={{
-                padding: '6px 12px 6px 32px',
-                border: '1px solid var(--color-gray-300)',
-                borderRadius: 8,
-                fontSize: 13,
-                width: 230,
-                background: 'var(--color-white)',
-                color: 'var(--color-gray-900)'
-              }}
-            />
-
-            {/* Global Search Results Dropdown Popup */}
-            {showSearchDropdown && searchText.trim().length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 6px)',
-                left: 0,
-                width: 'min(380px, 90vw)',
-                maxHeight: 340,
-                overflowY: 'auto',
-                background: 'var(--color-white)',
-                border: '1px solid var(--color-gray-300)',
-                borderRadius: 10,
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                zIndex: 100,
-                padding: '6px 0',
-              }}>
-                {globalSearchResults.length === 0 ? (
-                  <div style={{ padding: 14, fontSize: 13, color: 'var(--color-gray-500)', textAlign: 'center' }}>
-                    No matching appointments found.
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-gray-500)', borderBottom: '1px solid var(--color-gray-100)', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Search Results ({globalSearchResults.length})</span>
-                      <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-accent)' }}>Click to jump to date</span>
-                    </div>
-                    {globalSearchResults.map(item => {
-                      const isDone = item.status === 'Done';
-                      const isNotDone = item.status === 'NotDone';
-                      const isCancelled = item.status === 'Cancelled';
-                      const dateStr = item.dateScheduled ? new Date(item.dateScheduled).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'Unscheduled';
-
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectSearchResult(item)}
-                          style={{
-                            padding: '10px 14px',
-                            borderBottom: '1px solid var(--color-gray-100)',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.15s',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-gray-100)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 2 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-gray-900)' }}>
-                              {item.patientName}
-                            </div>
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: '2px 6px',
-                              borderRadius: 4,
-                              whiteSpace: 'nowrap',
-                              background: isDone ? '#dcfce7' : isNotDone ? '#fef3c7' : isCancelled ? '#fee2e2' : '#dbeafe',
-                              color: isDone ? '#15803d' : isNotDone ? '#92400e' : isCancelled ? '#b91c1c' : '#1e40af',
-                            }}>
-                              {item.status === 'NotDone' ? 'Not Done' : item.status}
-                            </span>
-                          </div>
-
-                          <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <span style={{ fontWeight: 600 }}>ID: {item.patientID}</span>
-                            {(item.patientAge != null || item.patientSex) && (
-                              <span>• {item.patientAge != null ? `${item.patientAge}Y` : ''}{item.patientSex ? `/${item.patientSex}` : ''}</span>
-                            )}
-                          </div>
-
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{item.procedureName} {item.modality ? `[${item.modality}]` : ''}</span>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-gray-600)', background: 'var(--color-gray-100)', padding: '1px 6px', borderRadius: 4 }}>📅 {dateStr}</span>
-                          </div>
-
-                          {item.notDoneReason && (
-                            <div style={{ fontSize: 11, color: isCancelled ? '#b91c1c' : '#92400e', fontStyle: 'italic', marginTop: 3 }}>
-                              Reason: {item.notDoneReason}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -1554,649 +1573,644 @@ export default function AppointmentPage() {
       </div>
 
       {/* Add / Edit Appointment Modal */}
-      {showApptModal && (
-        <div onClick={() => setShowApptModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 10, padding: 20, width: 'min(540px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', border: '1px solid var(--color-gray-300)' }}>
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 14, color: 'var(--color-gray-900)' }}>
-              {apptModalMode === 'create' ? 'Schedule New Appointment' : 'Edit Appointment Details'}
-            </div>
-            <form onSubmit={handleSaveAppointment} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              
-              {/* Patient ID with Auto-Lookup on Blur */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Patient ID *</span>
-                <input
-                  required
-                  placeholder="Enter or type Patient ID"
-                  value={formState.patientID}
-                  onChange={(e) => setFormState({ ...formState, patientID: e.target.value })}
-                  onBlur={(e) => handlePatientIDBlur(e.target.value)}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                />
-              </label>
+      <BottomSheetModal
+        open={showApptModal}
+        onClose={() => setShowApptModal(false)}
+        title={apptModalMode === 'create' ? 'Schedule New Appointment' : 'Edit Appointment Details'}
+        maxWidth="560px"
+      >
+            <div>
+              <form onSubmit={handleSaveAppointment} className="modal-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                
+                {/* Patient ID with Auto-Lookup on Blur */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Patient ID *</span>
+                  <input
+                    required
+                    placeholder="Enter or type Patient ID"
+                    value={formState.patientID}
+                    onChange={(e) => setFormState({ ...formState, patientID: e.target.value })}
+                    onBlur={(e) => handlePatientIDBlur(e.target.value)}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  />
+                </label>
 
-              {/* Patient Name */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Patient Name *</span>
-                <input
-                  required
-                  placeholder="Patient Full Name"
-                  value={formState.patientName}
-                  onChange={(e) => setFormState({ ...formState, patientName: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                />
-              </label>
+                {/* Patient Name */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Patient Name *</span>
+                  <input
+                    required
+                    placeholder="Patient Full Name"
+                    value={formState.patientName}
+                    onChange={(e) => setFormState({ ...formState, patientName: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  />
+                </label>
 
-              {/* Patient Age (No Up/Down Arrow Spinners) */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Age</span>
-                <input
-                  type="number"
-                  className="no-spinner"
-                  placeholder="e.g. 45"
-                  value={formState.patientAge}
-                  onChange={(e) => setFormState({ ...formState, patientAge: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                />
-              </label>
+                {/* Patient Age (No Up/Down Arrow Spinners) */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Age</span>
+                  <input
+                    type="number"
+                    className="no-spinner"
+                    placeholder="e.g. 45"
+                    value={formState.patientAge}
+                    onChange={(e) => setFormState({ ...formState, patientAge: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  />
+                </label>
 
-              {/* Patient Sex */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Sex</span>
-                <select
-                  value={formState.patientSex}
-                  onChange={(e) => setFormState({ ...formState, patientSex: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                >
-                  <option value="">Select Sex</option>
-                  <option value="M">Male (M)</option>
-                  <option value="F">Female (F)</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
+                {/* Patient Sex */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Sex</span>
+                  <select
+                    value={formState.patientSex}
+                    onChange={(e) => setFormState({ ...formState, patientSex: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  >
+                    <option value="">Select Sex</option>
+                    <option value="M">Male (M)</option>
+                    <option value="F">Female (F)</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
 
-              {/* Typable Dropdown with Keyboard Navigation: Procedure Name */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1', position: 'relative' }} ref={procedureDropdownRef}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Procedure Name *</span>
-                <input
-                  required
-                  placeholder="Type to search or select procedure..."
-                  value={formState.procedureName}
-                  onFocus={() => {
-                    setShowProcedureDropdown(true);
-                    setProcedureDropdownIndex(0);
-                  }}
-                  onChange={(e) => {
-                    setFormState({ ...formState, procedureName: e.target.value });
-                    setShowProcedureDropdown(true);
-                    setProcedureDropdownIndex(0);
-                  }}
-                  onKeyDown={(e) => {
-                    if (!showProcedureDropdown || filteredProcedures.length === 0) return;
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      setProcedureDropdownIndex(prev => Math.min(prev + 1, filteredProcedures.length - 1));
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setProcedureDropdownIndex(prev => Math.max(prev - 1, 0));
-                    } else if (e.key === 'Enter') {
-                      if (procedureDropdownIndex >= 0 && filteredProcedures[procedureDropdownIndex]) {
+                {/* Typable Dropdown with Keyboard Navigation: Procedure Name */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1', position: 'relative' }} ref={procedureDropdownRef}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Procedure Name *</span>
+                  <input
+                    required
+                    placeholder="Type to search or select procedure..."
+                    value={formState.procedureName}
+                    onFocus={() => {
+                      setShowProcedureDropdown(true);
+                      setProcedureDropdownIndex(0);
+                    }}
+                    onChange={(e) => {
+                      setFormState({ ...formState, procedureName: e.target.value });
+                      setShowProcedureDropdown(true);
+                      setProcedureDropdownIndex(0);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!showProcedureDropdown || filteredProcedures.length === 0) return;
+                      if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        const selected = filteredProcedures[procedureDropdownIndex].procedureName;
-                        setFormState(prev => ({ ...prev, procedureName: selected }));
+                        setProcedureDropdownIndex(prev => Math.min(prev + 1, filteredProcedures.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setProcedureDropdownIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === 'Enter') {
+                        if (procedureDropdownIndex >= 0 && filteredProcedures[procedureDropdownIndex]) {
+                          e.preventDefault();
+                          const selected = filteredProcedures[procedureDropdownIndex].procedureName;
+                          setFormState(prev => ({ ...prev, procedureName: selected }));
+                          setShowProcedureDropdown(false);
+                          setProcedureDropdownIndex(-1);
+                        }
+                      } else if (e.key === 'Escape' || e.key === 'Tab') {
                         setShowProcedureDropdown(false);
                         setProcedureDropdownIndex(-1);
                       }
-                    } else if (e.key === 'Escape' || e.key === 'Tab') {
-                      setShowProcedureDropdown(false);
-                      setProcedureDropdownIndex(-1);
-                    }
-                  }}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                    }}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  />
+                  {showProcedureDropdown && filteredProcedures.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      background: 'var(--color-white)',
+                      border: '1px solid var(--color-gray-300)',
+                      borderRadius: 6,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      zIndex: 10001,
+                      marginTop: 2,
+                    }}>
+                      {filteredProcedures.map((p, idx) => {
+                        const isHighlighted = procedureDropdownIndex === idx;
+                        return (
+                          <div
+                            key={p.proID || p.procedureName}
+                            onClick={() => {
+                              setFormState(prev => ({ ...prev, procedureName: p.procedureName }));
+                              setShowProcedureDropdown(false);
+                              setProcedureDropdownIndex(-1);
+                            }}
+                            onMouseEnter={() => setProcedureDropdownIndex(idx)}
+                            style={{
+                              padding: '8px 12px',
+                              cursor: 'pointer',
+                              fontSize: 13,
+                              background: isHighlighted ? 'var(--color-accent)' : 'transparent',
+                              color: isHighlighted ? '#fff' : 'var(--color-gray-900)',
+                              borderBottom: '1px solid var(--color-gray-100)',
+                            }}
+                          >
+                            {p.procedureName}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Modality Dropdown Field */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Modality</span>
+                  <select
+                    value={formState.modality || ''}
+                    onChange={(e) => setFormState({ ...formState, modality: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  >
+                    <option value="">Select Modality</option>
+                    {MODALITY_PRESETS.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Appointment Time */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Appointment Time (Optional)</span>
+                  <input
+                    type="time"
+                    value={formState.appointmentTime}
+                    onChange={(e) => setFormState({ ...formState, appointmentTime: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  />
+                </label>
+
+                {/* Date Scheduled */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Date Scheduled</span>
+                  <input
+                    type="date"
+                    required
+                    value={formState.dateScheduled}
+                    onChange={(e) => setFormState({ ...formState, dateScheduled: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                  />
+                </label>
+
+                {/* Notes */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Notes (Optional)</span>
+                  <textarea
+                    rows={2}
+                    value={formState.notes}
+                    onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
+                    style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', resize: 'vertical' }}
+                  />
+                </label>
+
+                {/* Actions Footer */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gridColumn: '1 / -1', marginTop: 8 }}>
+                  <div>
+                    {apptModalMode === 'edit' && editingItem && canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAppointment(editingItem.id)}
+                        style={{ padding: '8px 14px', border: '1px solid #ef4444', color: '#ef4444', borderRadius: 6, background: 'var(--color-white)', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowApptModal(false)}
+                      style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '8px 16px', border: 'none', background: 'var(--color-accent)', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {apptModalMode === 'edit' ? 'Save Changes' : 'Schedule Appointment'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+      </BottomSheetModal>
+
+      {/* Mark Not Done Reason Modal */}
+      <BottomSheetModal
+        open={showNotDoneModal && !!notDoneItem}
+        onClose={() => setShowNotDoneModal(false)}
+        title="Mark Procedure as Not Done"
+        maxWidth="450px"
+      >
+              <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
+                Select or specify the reason why the procedure for <strong>{notDoneItem?.patientName}</strong> was not performed:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                {PRESET_NOT_DONE_REASONS.map(reason => (
+                  <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--color-gray-800)' }}>
+                    <input
+                      type="radio"
+                      name="notDoneReason"
+                      value={reason}
+                      checked={selectedReason === reason}
+                      onChange={() => setSelectedReason(reason)}
+                    />
+                    {reason}
+                  </label>
+                ))}
+              </div>
+
+              {selectedReason === 'Other (specified below)' && (
+                <textarea
+                  placeholder="Enter specific reason..."
+                  rows={2}
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  style={{ width: '100%', padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, marginBottom: 14, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
                 />
-                {showProcedureDropdown && filteredProcedures.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    maxHeight: 180,
-                    overflowY: 'auto',
-                    background: 'var(--color-white)',
-                    border: '1px solid var(--color-gray-300)',
-                    borderRadius: 6,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    zIndex: 70,
-                    marginTop: 2,
-                  }}>
-                    {filteredProcedures.map((p, idx) => {
-                      const isHighlighted = procedureDropdownIndex === idx;
-                      return (
-                        <div
-                          key={p.proID || p.procedureName}
-                          onClick={() => {
-                            setFormState(prev => ({ ...prev, procedureName: p.procedureName }));
-                            setShowProcedureDropdown(false);
-                            setProcedureDropdownIndex(-1);
-                          }}
-                          onMouseEnter={() => setProcedureDropdownIndex(idx)}
-                          style={{
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            fontSize: 13,
-                            background: isHighlighted ? 'var(--color-accent)' : 'transparent',
-                            color: isHighlighted ? '#fff' : 'var(--color-gray-900)',
-                            borderBottom: '1px solid var(--color-gray-100)',
-                          }}
-                        >
-                          {p.procedureName}
-                        </div>
-                      );
-                    })}
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowNotDoneModal(false)}
+                  style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmNotDone}
+                  style={{ padding: '8px 16px', border: 'none', background: '#dc2626', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Confirm Not Done
+                </button>
+              </div>
+      </BottomSheetModal>
+
+      {/* Action Card Context Popover Modal */}
+      <BottomSheetModal
+        open={!!actionCard}
+        onClose={() => setActionCard(null)}
+        title={actionCard?.patientName || ''}
+        maxWidth="460px"
+      >
+        {actionCard && (
+          <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--color-gray-500)', marginTop: 2 }}>
+                    ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
+                  color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
+                }}>
+                  {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
+                </span>
+              </div>
+
+              <div style={{ background: 'var(--color-gray-100)', padding: 10, borderRadius: 8, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-accent)' }}>
+                  {actionCard.procedureName} {actionCard.modality ? `(${actionCard.modality})` : ''}
+                </div>
+                {actionCard.appointmentTime && (
+                  <div style={{ fontSize: 12, color: 'var(--color-gray-600)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <FiClock size={12} /> Scheduled Time: {actionCard.appointmentTime}
+                  </div>
+                )}
+                {actionCard.notDoneReason && (
+                  <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontStyle: 'italic' }}>
+                    Reason: {actionCard.notDoneReason}
                   </div>
                 )}
               </div>
 
-              {/* Modality Dropdown Field */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Modality</span>
-                <select
-                  value={formState.modality || ''}
-                  onChange={(e) => setFormState({ ...formState, modality: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                >
-                  <option value="">Select Modality</option>
-                  {MODALITY_PRESETS.map(m => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-              </label>
+              {/* Action Buttons List */}
+              {canEdit && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button
+                    onClick={() => { setActionCard(null); openEditModal(actionCard); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-gray-300)', background: 'var(--color-white)', color: 'var(--color-gray-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                  >
+                    <FiEdit2 size={16} /> Edit Details
+                  </button>
 
-              {/* Appointment Time */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Appointment Time (Optional)</span>
-                <input
-                  type="time"
-                  value={formState.appointmentTime}
-                  onChange={(e) => setFormState({ ...formState, appointmentTime: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                />
-              </label>
+                  <button
+                    onClick={() => { setActionCard(null); handleMarkDone(actionCard); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                  >
+                    <FiCheckCircle size={16} /> Mark as Done
+                  </button>
 
-              {/* Date Scheduled */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Date Scheduled</span>
-                <input
-                  type="date"
-                  required
-                  value={formState.dateScheduled}
-                  onChange={(e) => setFormState({ ...formState, dateScheduled: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-                />
-              </label>
+                  <button
+                    onClick={() => { setActionCard(null); handleOpenNotDoneModal(actionCard); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                  >
+                    <FiXCircle size={16} /> Mark as Not Done
+                  </button>
 
-              {/* Notes */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Notes (Optional)</span>
-                <textarea
-                  rows={2}
-                  value={formState.notes}
-                  onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
-                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', resize: 'vertical' }}
-                />
-              </label>
+                  <button
+                    onClick={() => { setActionCard(null); handleOpenCancelledModal(actionCard); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#fee2e2', color: '#b91c1c', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                  >
+                    <FiSlash size={16} /> Mark as Cancelled
+                  </button>
 
-              {/* Actions Footer */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gridColumn: '1 / -1', marginTop: 8 }}>
-                <div>
-                  {apptModalMode === 'edit' && editingItem && canEdit && (
+                  {(actionCard.status === 'NotDone' || actionCard.status === 'Cancelled') && (
                     <button
-                      type="button"
-                      onClick={() => handleDeleteAppointment(editingItem.id)}
-                      style={{ padding: '8px 14px', border: '1px solid #ef4444', color: '#ef4444', borderRadius: 6, background: 'var(--color-white)', cursor: 'pointer', fontWeight: 600 }}
+                      onClick={() => handleRefixAppointment(actionCard)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: 'var(--color-accent)',
+                        color: 'var(--color-accent-contrast, #fff)',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
                     >
-                      Delete
+                      <FiRefreshCw size={16} /> Refix Appointment (Copy to Today)
+                    </button>
+                  )}
+
+                  {actionCard.status !== 'Scheduled' && (
+                    <button
+                      onClick={() => { handleResetToScheduled(actionCard); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                    >
+                      <FiRotateCcw size={16} /> Reset Status to Scheduled
                     </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowApptModal(false)}
-                    style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ padding: '8px 16px', border: 'none', background: 'var(--color-accent)', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    {apptModalMode === 'edit' ? 'Save Changes' : 'Schedule Appointment'}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Mark Not Done Reason Modal */}
-      {showNotDoneModal && notDoneItem && (
-        <div onClick={() => setShowNotDoneModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 10, padding: 20, width: 'min(440px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', border: '1px solid var(--color-gray-300)' }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: 'var(--color-gray-900)' }}>
-              Mark Procedure as Not Done
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
-              Select or specify the reason why the procedure for <strong>{notDoneItem.patientName}</strong> was not performed:
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-              {PRESET_NOT_DONE_REASONS.map(reason => (
-                <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--color-gray-800)' }}>
-                  <input
-                    type="radio"
-                    name="notDoneReason"
-                    value={reason}
-                    checked={selectedReason === reason}
-                    onChange={() => setSelectedReason(reason)}
-                  />
-                  {reason}
-                </label>
-              ))}
-            </div>
-
-            {selectedReason === 'Other (specified below)' && (
-              <textarea
-                placeholder="Enter specific reason..."
-                rows={2}
-                value={customReason}
-                onChange={(e) => setCustomReason(e.target.value)}
-                style={{ width: '100%', padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, marginBottom: 14, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-              />
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowNotDoneModal(false)}
-                style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmNotDone}
-                style={{ padding: '8px 16px', border: 'none', background: '#dc2626', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Confirm Not Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Action Card Context Popover Modal */}
-      {actionCard && (
-        <div onClick={() => setActionCard(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 12, padding: 20, width: 'min(440px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', border: '1px solid var(--color-gray-300)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--color-gray-900)' }}>{actionCard.patientName}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-gray-500)', marginTop: 2 }}>
-                  ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''}
-                </div>
-              </div>
-              <span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: '4px 8px',
-                borderRadius: 6,
-                background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
-                color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
-              }}>
-                {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
-              </span>
-            </div>
-
-            <div style={{ background: 'var(--color-gray-100)', padding: 10, borderRadius: 8, marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-accent)' }}>
-                {actionCard.procedureName} {actionCard.modality ? `(${actionCard.modality})` : ''}
-              </div>
-              {actionCard.appointmentTime && (
-                <div style={{ fontSize: 12, color: 'var(--color-gray-600)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <FiClock size={12} /> Scheduled Time: {actionCard.appointmentTime}
-                </div>
               )}
-              {actionCard.notDoneReason && (
-                <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4, fontStyle: 'italic' }}>
-                  Reason: {actionCard.notDoneReason}
-                </div>
-              )}
-            </div>
 
-            {/* Action Buttons List */}
-            {canEdit && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
                 <button
-                  onClick={() => { setActionCard(null); openEditModal(actionCard); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-gray-300)', background: 'var(--color-white)', color: 'var(--color-gray-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                  onClick={() => setActionCard(null)}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  <FiEdit2 size={16} /> Edit Details
+                  Close
                 </button>
-
-                <button
-                  onClick={() => { setActionCard(null); handleMarkDone(actionCard); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  <FiCheckCircle size={16} /> Mark as Done
-                </button>
-
-                <button
-                  onClick={() => { setActionCard(null); handleOpenNotDoneModal(actionCard); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  <FiXCircle size={16} /> Mark as Not Done
-                </button>
-
-                <button
-                  onClick={() => { setActionCard(null); handleOpenCancelledModal(actionCard); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: 'none', background: '#fee2e2', color: '#b91c1c', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  <FiSlash size={16} /> Mark as Cancelled
-                </button>
-
-                {(actionCard.status === 'NotDone' || actionCard.status === 'Cancelled') && (
-                  <button
-                    onClick={() => handleRefixAppointment(actionCard)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '10px 14px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: 'var(--color-accent)',
-                      color: 'var(--color-accent-contrast, #fff)',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    }}
-                  >
-                    <FiRefreshCw size={16} /> Refix Appointment (Copy to Today)
-                  </button>
-                )}
-
-                {actionCard.status !== 'Scheduled' && (
-                  <button
-                    onClick={() => { handleResetToScheduled(actionCard); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-                  >
-                    <FiRotateCcw size={16} /> Reset Status to Scheduled
-                  </button>
-                )}
               </div>
-            )}
-
-            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setActionCard(null)}
-                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </BottomSheetModal>
 
       {/* Mark Cancelled Reason Modal */}
-      {showCancelledModal && cancelledItem && (
-        <div onClick={() => setShowCancelledModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 65 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 10, padding: 20, width: 'min(440px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', border: '1px solid var(--color-gray-300)' }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: 'var(--color-gray-900)' }}>
-              Mark Appointment as Cancelled
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
-              Select or specify the cancellation reason for <strong>{cancelledItem.patientName}</strong>:
-            </p>
+      <BottomSheetModal
+        open={showCancelledModal && !!cancelledItem}
+        onClose={() => setShowCancelledModal(false)}
+        title="Mark Appointment as Cancelled"
+        maxWidth="450px"
+      >
+              <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
+                Select or specify the cancellation reason for <strong>{cancelledItem?.patientName}</strong>:
+              </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-              {PRESET_CANCELLED_REASONS.map(reason => (
-                <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--color-gray-800)' }}>
-                  <input
-                    type="radio"
-                    name="cancelledReason"
-                    value={reason}
-                    checked={selectedCancelledReason === reason}
-                    onChange={() => setSelectedCancelledReason(reason)}
-                  />
-                  {reason}
-                </label>
-              ))}
-            </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                {PRESET_CANCELLED_REASONS.map(reason => (
+                  <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--color-gray-800)' }}>
+                    <input
+                      type="radio"
+                      name="cancelledReason"
+                      value={reason}
+                      checked={selectedCancelledReason === reason}
+                      onChange={() => setSelectedCancelledReason(reason)}
+                    />
+                    {reason}
+                  </label>
+                ))}
+              </div>
 
-            {selectedCancelledReason === 'Other (specified below)' && (
-              <textarea
-                placeholder="Enter specific cancellation reason..."
-                rows={2}
-                value={customCancelledReason}
-                onChange={(e) => setCustomCancelledReason(e.target.value)}
-                style={{ width: '100%', padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, marginBottom: 14, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
-              />
-            )}
+              {selectedCancelledReason === 'Other (specified below)' && (
+                <textarea
+                  placeholder="Enter specific cancellation reason..."
+                  rows={2}
+                  value={customCancelledReason}
+                  onChange={(e) => setCustomCancelledReason(e.target.value)}
+                  style={{ width: '100%', padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, marginBottom: 14, fontSize: 13, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                />
+              )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowCancelledModal(false)}
-                style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmCancelled}
-                style={{ padding: '8px 16px', border: 'none', background: '#dc2626', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Confirm Cancelled
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelledModal(false)}
+                  style={{ padding: '8px 14px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 500 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCancelled}
+                  style={{ padding: '8px 16px', border: 'none', background: '#dc2626', color: '#fff', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Confirm Cancelled
+                </button>
+              </div>
+      </BottomSheetModal>
 
       {/* Holiday Caution Confirmation Prompt Modal */}
-      {pendingHolidayConfirm && (
-        <div onClick={() => setPendingHolidayConfirm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 75 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 12, padding: 22, width: 'min(440px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', border: '1px solid #f59e0b' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 18, fontWeight: 700, color: '#b45309', marginBottom: 10 }}>
-              <span>⚠️</span> Holiday Caution
-            </div>
-            <p style={{ fontSize: 14, color: 'var(--color-gray-800)', lineHeight: 1.5, marginBottom: 18 }}>
-              <strong>{pendingHolidayConfirm.formattedDate}</strong> is marked as a <strong>{pendingHolidayConfirm.holidayType} Holiday</strong> (<em>{pendingHolidayConfirm.holidayName}</em>).
-              <br /><br />
-              Do you still want to book an appointment on this day?
-            </p>
+      <BottomSheetModal
+        open={!!pendingHolidayConfirm}
+        onClose={() => setPendingHolidayConfirm(null)}
+        title="⚠️ Holiday Caution"
+        maxWidth="440px"
+      >
+        {pendingHolidayConfirm && (
+          <>
+              <p style={{ fontSize: 14, color: 'var(--color-gray-800)', lineHeight: 1.5, marginBottom: 18 }}>
+                <strong>{pendingHolidayConfirm.formattedDate}</strong> is marked as a <strong>{pendingHolidayConfirm.holidayType} Holiday</strong> (<em>{pendingHolidayConfirm.holidayName}</em>).
+                <br /><br />
+                Do you still want to book an appointment on this day?
+              </p>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setPendingHolidayConfirm(null)}
-                style={{ padding: '8px 16px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const confirmData = pendingHolidayConfirm;
-                  setPendingHolidayConfirm(null);
-                  if (confirmData.type === 'drag' && confirmData.dragResult) {
-                    await executeDrag(confirmData.dragResult);
-                  } else if (confirmData.type === 'submit') {
-                    await executeSaveAppointment();
-                  }
-                }}
-                style={{ padding: '8px 18px', border: 'none', background: '#f59e0b', color: '#fff', borderRadius: 6, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Confirm & Proceed
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setPendingHolidayConfirm(null)}
+                  style={{ padding: '8px 16px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const confirmData = pendingHolidayConfirm;
+                    setPendingHolidayConfirm(null);
+                    if (confirmData.type === 'drag' && confirmData.dragResult) {
+                      await executeDrag(confirmData.dragResult);
+                    } else if (confirmData.type === 'submit') {
+                      await executeSaveAppointment();
+                    }
+                  }}
+                  style={{ padding: '8px 18px', border: 'none', background: '#f59e0b', color: '#fff', borderRadius: 6, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Confirm & Proceed
+                </button>
+              </div>
+          </>
+        )}
+      </BottomSheetModal>
 
       {/* Manage Holiday List Modal */}
-      {showHolidayModal && (
-        <div onClick={() => setShowHolidayModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 65 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 12, padding: 22, width: 'min(580px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', border: '1px solid var(--color-gray-300)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--color-gray-900)' }}>Manage Holiday List</div>
-              <button onClick={() => setShowHolidayModal(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--color-gray-500)' }}>×</button>
-            </div>
+      <BottomSheetModal
+        open={showHolidayModal}
+        onClose={() => setShowHolidayModal(false)}
+        title="Manage Holiday List"
+        maxWidth="580px"
+      >
+              <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
+                Set your recurring weekly off day or add specific Festival and Personal holidays. Holiday dates are automatically highlighted with caution prompts during scheduling.
+              </p>
 
-            <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
-              Set your recurring weekly off day or add specific Festival and Personal holidays. Holiday dates are automatically highlighted with caution prompts during scheduling.
-            </p>
-
-            {/* Weekly Off Day Setting */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--color-gray-100)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-gray-900)' }}>Weekly Recurring Off Day</div>
-                <div style={{ fontSize: 11, color: 'var(--color-gray-600)' }}>Standard weekly holiday for your clinic/department</div>
-              </div>
-              <select
-                value={weeklyHoliday}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setWeeklyHoliday(val);
-                  fetch('/api/settings', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ weeklyHoliday: val }),
-                  });
-                }}
-                style={{ padding: '6px 12px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13, fontWeight: 600 }}
-              >
-                <option value="Sunday">Sunday (Default)</option>
-                <option value="Friday">Friday</option>
-                <option value="Saturday">Saturday</option>
-                <option value="Monday">Monday</option>
-                <option value="Tuesday">Tuesday</option>
-                <option value="Wednesday">Wednesday</option>
-                <option value="Thursday">Thursday</option>
-                <option value="None">None</option>
-              </select>
-            </div>
-
-            {/* Add Holiday Form */}
-            <form onSubmit={handleAddHoliday} style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 18, background: 'var(--color-gray-100)', padding: 12, borderRadius: 8 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>Date *</span>
-                <input
-                  type="date"
-                  required
-                  value={newHolidayDate}
-                  onChange={(e) => setNewHolidayDate(e.target.value)}
-                  style={{ padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13 }}
-                />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>Holiday Name *</span>
-                <input
-                  required
-                  placeholder="e.g. Diwali, Leave"
-                  value={newHolidayName}
-                  onChange={(e) => setNewHolidayName(e.target.value)}
-                  style={{ padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13 }}
-                />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>Type</span>
+              {/* Weekly Off Day Setting */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--color-gray-100)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-gray-900)' }}>Weekly Recurring Off Day</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-gray-600)' }}>Standard weekly holiday for your clinic/department</div>
+                </div>
                 <select
-                  value={newHolidayType}
-                  onChange={(e) => setNewHolidayType(e.target.value as any)}
-                  style={{ padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13 }}
+                  value={weeklyHoliday}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setWeeklyHoliday(val);
+                    fetch('/api/settings', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ weeklyHoliday: val }),
+                    });
+                  }}
+                  style={{ padding: '6px 12px', border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13, fontWeight: 600 }}
                 >
-                  <option value="Festival">🎉 Festival</option>
-                  <option value="Personal">🌴 Personal</option>
+                  <option value="Sunday">Sunday (Default)</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="None">None</option>
                 </select>
-              </label>
-
-              <button
-                type="submit"
-                style={{ padding: '7px 14px', background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-              >
-                Add Holiday
-              </button>
-            </form>
-
-            {/* Holidays List Table */}
-            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid var(--color-gray-200)', borderRadius: 8 }}>
-              {holidaysList.length === 0 ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-gray-500)', fontSize: 13 }}>No holidays added yet.</div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: 'var(--color-gray-100)', textAlign: 'left', borderBottom: '1px solid var(--color-gray-200)' }}>
-                      <th style={{ padding: '8px 12px' }}>Date</th>
-                      <th style={{ padding: '8px 12px' }}>Holiday Name</th>
-                      <th style={{ padding: '8px 12px' }}>Type</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holidaysList.map(h => (
-                      <tr key={h.id} style={{ borderBottom: '1px solid var(--color-gray-100)' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 600 }}>{h.date}</td>
-                        <td style={{ padding: '8px 12px' }}>{h.name}</td>
-                        <td style={{ padding: '8px 12px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: h.type === 'Festival' ? '#fef3c7' : '#e0f2fe', color: h.type === 'Festival' ? '#b45309' : '#0369a1' }}>
-                            {h.type === 'Festival' ? '🎉 Festival' : '🌴 Personal'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                          <button
-                            onClick={() => handleDeleteHoliday(h.id)}
-                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            <div style={{ marginTop: 16, textAlign: 'right' }}>
-              <button
-                onClick={() => setShowHolidayModal(false)}
-                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Export Options Modal */}
-      {showExportModal && (
-        <div onClick={() => setShowExportModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-white)', color: 'var(--color-gray-900)', borderRadius: 12, padding: 22, width: 'min(500px, 92vw)', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', border: '1px solid var(--color-gray-300)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--color-gray-900)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FiDownload size={20} color="var(--color-accent)" /> Export Audit & Appointments
               </div>
-              <button onClick={() => setShowExportModal(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--color-gray-500)' }}>×</button>
-            </div>
 
+              {/* Add Holiday Form */}
+              <form onSubmit={handleAddHoliday} className="modal-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, alignItems: 'end', marginBottom: 18, background: 'var(--color-gray-100)', padding: 12, borderRadius: 8 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Date *</span>
+                  <input
+                    type="date"
+                    required
+                    value={newHolidayDate}
+                    onChange={(e) => setNewHolidayDate(e.target.value)}
+                    style={{ padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13 }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Holiday Name *</span>
+                  <input
+                    required
+                    placeholder="e.g. Diwali, Leave"
+                    value={newHolidayName}
+                    onChange={(e) => setNewHolidayName(e.target.value)}
+                    style={{ padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13 }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Type</span>
+                  <select
+                    value={newHolidayType}
+                    onChange={(e) => setNewHolidayType(e.target.value as any)}
+                    style={{ padding: 6, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)', fontSize: 13 }}
+                  >
+                    <option value="Festival">🎉 Festival</option>
+                    <option value="Personal">🌴 Personal</option>
+                  </select>
+                </label>
+
+                <button
+                  type="submit"
+                  style={{ padding: '7px 14px', border: 'none', background: 'var(--color-accent)', color: '#fff', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                >
+                  + Add
+                </button>
+              </form>
+
+              {/* Existing Holidays List */}
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--color-gray-200)', borderRadius: 8 }}>
+                {holidaysList.length === 0 ? (
+                  <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-gray-500)', fontSize: 13 }}>
+                    No custom holidays added yet.
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--color-gray-100)', textAlign: 'left', borderBottom: '1px solid var(--color-gray-200)' }}>
+                        <th style={{ padding: '8px 12px' }}>Date</th>
+                        <th style={{ padding: '8px 12px' }}>Holiday Name</th>
+                        <th style={{ padding: '8px 12px' }}>Type</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holidaysList.map(h => (
+                        <tr key={h.id} style={{ borderBottom: '1px solid var(--color-gray-100)' }}>
+                          <td style={{ padding: '8px 12px', fontWeight: 600 }}>{h.date}</td>
+                          <td style={{ padding: '8px 12px' }}>{h.name}</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: h.type === 'Festival' ? '#fef3c7' : '#e0f2fe', color: h.type === 'Festival' ? '#b45309' : '#0369a1' }}>
+                              {h.type === 'Festival' ? '🎉 Festival' : '🌴 Personal'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleDeleteHoliday(h.id)}
+                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <button
+                  onClick={() => setShowHolidayModal(false)}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Close
+                </button>
+              </div>
+      </BottomSheetModal>
+      {/* Export Options Modal */}
+      <BottomSheetModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title={<><FiDownload size={20} color="var(--color-accent)" style={{ display: 'inline', marginRight: 8 }} />Export Audit & Appointments</>}
+        maxWidth="500px"
+      >
             <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 16 }}>
               Export detailed appointment tracking records including completed status, non-completion reasons, and cancellation feedback.
             </p>
@@ -2276,7 +2290,7 @@ export default function AppointmentPage() {
             </div>
 
             {/* Export Format Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 12, borderTop: '1px solid var(--color-gray-200)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 12, borderTop: '1px solid var(--color-gray-200)', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setShowExportModal(false)}
@@ -2301,9 +2315,8 @@ export default function AppointmentPage() {
                 <FiPrinter size={16} /> PDF / Print Report
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheetModal>
+
 
       {/* IRLog Register Modal */}
       <ProcedureLogModal
