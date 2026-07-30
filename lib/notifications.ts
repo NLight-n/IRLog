@@ -31,6 +31,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 /**
  * Registers Web Push subscription for the active user session.
+ * Always fetches the current active server VAPID key and clears stale local subscriptions.
  */
 export async function subscribeUserToPush(): Promise<{ ok: boolean; message: string }> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -45,18 +46,38 @@ export async function subscribeUserToPush(): Promise<{ ok: boolean; message: str
   try {
     const registration = await navigator.serviceWorker.ready;
     
-    // Get VAPID public key from env variable
-    const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    // 1. Fetch active VAPID public key dynamically from server
+    let publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    try {
+      const vapidRes = await fetch('/api/notifications/vapid-key');
+      if (vapidRes.ok) {
+        const vapidData = await vapidRes.json();
+        if (vapidData.publicKey) {
+          publicVapidKey = vapidData.publicKey;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch dynamic VAPID key, using env fallback:', e);
+    }
+
     if (!publicVapidKey) {
       throw new Error('VAPID public key is not configured on the server.');
     }
 
+    // 2. Unsubscribe any existing stale subscription to avoid VAPID key mismatch
+    const existingSub = await registration.pushManager.getSubscription();
+    if (existingSub) {
+      console.log('Clearing existing push subscription before re-subscribing with active VAPID key...');
+      await existingSub.unsubscribe().catch(() => {});
+    }
+
+    // 3. Subscribe with current active VAPID key
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
     });
 
-    // Send subscription object to Next.js API route
+    // 4. Send subscription object to Next.js API route
     const res = await fetch('/api/notifications/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

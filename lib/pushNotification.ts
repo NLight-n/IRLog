@@ -91,9 +91,10 @@ export async function sendPushNotification(params: {
         sentCount++;
       } catch (err: any) {
         failedCount++;
-        // If subscription has expired or is invalid (404 or 410 Gone), remove it from the DB
-        if (err.statusCode === 404 || err.statusCode === 410) {
-          console.log(`Pruning expired push subscription endpoint: ${sub.endpoint}`);
+        const statusCode = err.statusCode || err.status;
+        // If subscription is invalid or expired (400, 401, 403, 404, 410), prune it from DB
+        if (statusCode && statusCode >= 400 && statusCode < 500) {
+          console.log(`Pruning invalid/expired push subscription endpoint (status ${statusCode}): ${sub.endpoint}`);
           await prisma.pushSubscription.delete({
             where: { id: sub.id },
           }).catch(() => {});

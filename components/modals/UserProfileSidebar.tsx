@@ -385,7 +385,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                             if (res.ok && data.ok) {
                               alert(`✅ ${data.message}`);
                             } else {
-                              alert(`❌ Notification Test Failed: ${data.message || 'Unknown error'}`);
+                              alert(`❌ Notification Test Failed: ${data.message || 'Unknown error'}\n\nTip: Click "🔄 Refresh & Sync Subscription" below to re-register this device with active VAPID keys.`);
                             }
                           } catch (err: any) {
                             alert(`❌ Request Error: ${err.message}`);
@@ -395,6 +395,31 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                         style={{ padding: '8px 12px', background: '#3b82f6', color: '#ffffff', borderColor: '#3b82f6', fontWeight: 600 }}
                       >
                         🧪 Send Test Push Notification
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const { subscribeUserToPush } = await import('../../lib/notifications');
+                          const res = await subscribeUserToPush();
+                          if (res.ok) {
+                            alert('✅ Device notification subscription refreshed with active VAPID keys! Sending test notification now...');
+                            // Try test push immediately
+                            const testRes = await fetch('/api/notifications/test', { method: 'POST' });
+                            const testData = await testRes.json();
+                            if (testRes.ok && testData.ok) {
+                              alert(`✅ Test Delivered Successfully: ${testData.message}`);
+                            } else {
+                              alert(`⚠️ Subscription updated, but test push reported: ${testData.message || 'Check browser/OS permissions.'}`);
+                            }
+                          } else {
+                            alert(`❌ Refresh Failed: ${res.message}`);
+                          }
+                        }}
+                        className="btn btn-secondary w-full text-xs flex items-center justify-center gap-2"
+                        style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.1)', color: '#059669', borderColor: '#10b981', fontWeight: 600 }}
+                      >
+                        🔄 Refresh & Sync Device Subscription
                       </button>
 
                       <button
