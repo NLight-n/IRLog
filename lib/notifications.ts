@@ -23,6 +23,34 @@ export type PushDiagnostics = {
   message: string;
 };
 
+function getServiceWorkerUrl(): string {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  return `${basePath}/sw.js`;
+}
+
+/**
+ * Registers the app worker immediately and waits a bounded time for activation.
+ * navigator.serviceWorker.ready alone can remain pending forever after a failed
+ * registration, which previously made the Push UI appear unresponsive.
+ */
+export async function ensurePushServiceWorker(): Promise<ServiceWorkerRegistration> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    throw new Error('Service workers are not supported by this browser.');
+  }
+
+  const workerUrl = getServiceWorkerUrl();
+  const registration = await navigator.serviceWorker.register(workerUrl);
+  if (registration.active) return registration;
+
+  const activationTimeout = new Promise<never>((_, reject) => {
+    window.setTimeout(() => {
+      reject(new Error(`Service worker did not activate within 10 seconds (${workerUrl}).`));
+    }, 10_000);
+  });
+
+  return Promise.race([navigator.serviceWorker.ready, activationTimeout]);
+}
+
 /** Safe, device-local Push API diagnostics. Does not expose the endpoint token. */
 export async function getPushDiagnostics(): Promise<PushDiagnostics> {
   const secureContext = window.isSecureContext;
@@ -42,10 +70,17 @@ export async function getPushDiagnostics(): Promise<PushDiagnostics> {
   if (!('serviceWorker' in navigator)) return { ...base, message: 'This browser does not support service workers.' };
 
   try {
-    // Do not use serviceWorker.ready: it can remain pending forever if activation fails.
-    const registration = await navigator.serviceWorker.getRegistration();
+    let registration = await navigator.serviceWorker.getRegistration();
     if (!registration) {
-      return { ...base, subscription: 'missing' as const, message: 'No service worker is registered. Reload the installed app and try again.' };
+      try {
+        registration = await ensurePushServiceWorker();
+      } catch (err: any) {
+        return {
+          ...base,
+          subscription: 'missing' as const,
+          message: `Service worker registration failed: ${err.message || String(err)}`,
+        };
+      }
     }
     const serviceWorker = registration.active?.state || registration.waiting?.state || registration.installing?.state || 'registered but inactive';
     if (!registration.active) {
@@ -69,7 +104,14 @@ export async function getPushDiagnostics(): Promise<PushDiagnostics> {
       vapidKey = 'unreachable';
     }
 
-    const result = { ...base, serviceWorker, endpointHost, subscription, vapidKey };
+    const result = {
+      ...base,
+      pageControlled: Boolean(navigator.serviceWorker.controller),
+      serviceWorker,
+      endpointHost,
+      subscription,
+      vapidKey,
+    };
     if (subscription === 'invalid') return { ...result, message: 'The browser returned an invalid push endpoint. This is a browser or device push-service issue, not a VAPID mismatch.' };
     if (subscription === 'missing') return { ...result, message: 'Service worker is active, but this device has no push subscription yet.' };
     if (vapidKey !== 'available') return { ...result, message: 'A subscription exists, but the app could not confirm the server VAPID public key.' };
@@ -111,7 +153,7 @@ export async function subscribeUserToPush(): Promise<{ ok: boolean; message: str
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await ensurePushServiceWorker();
     
     // 1. Fetch active VAPID public key dynamically from server
     let publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -172,7 +214,7 @@ export async function unsubscribeUserFromPush(): Promise<{ ok: boolean; message:
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await ensurePushServiceWorker();
     const subscription = await registration.pushManager.getSubscription();
     
     if (subscription) {
@@ -202,7 +244,8 @@ export async function checkPushSubscriptionStatus(): Promise<boolean> {
     return false;
   }
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) return false;
     const subscription = await registration.pushManager.getSubscription();
     return !!subscription;
   } catch {

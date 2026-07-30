@@ -9,6 +9,7 @@ import { AppointmentsCountProvider } from '../lib/appointmentsCountContext';
 import { PWAProvider } from '../lib/pwaContext';
 import OfflineBanner from '../components/common/OfflineBanner';
 import PWAInstallBanner from '../components/common/PWAInstallBanner';
+import { ensurePushServiceWorker } from '../lib/notifications';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -117,18 +118,10 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   // Register PWA Service Worker
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      const swUrl = `${basePath}/sw.js`;
-      if (document.readyState === 'complete') {
-        navigator.serviceWorker.register(swUrl).catch(err => {
-          console.log('PWA ServiceWorker registration failed:', err);
-        });
-      } else {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register(swUrl).catch(err => {
-            console.log('PWA ServiceWorker registration failed:', err);
-          });
-        });
-      }
+      // Register immediately. Waiting for window.load can miss the event in a PWA.
+      ensurePushServiceWorker().catch(err => {
+        console.error('PWA ServiceWorker registration failed:', err);
+      });
     }
   }, []);
 
