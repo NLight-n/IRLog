@@ -9,7 +9,7 @@ import { AppointmentsCountProvider } from '../lib/appointmentsCountContext';
 import { PWAProvider } from '../lib/pwaContext';
 import OfflineBanner from '../components/common/OfflineBanner';
 import PWAInstallBanner from '../components/common/PWAInstallBanner';
-import { ensurePushServiceWorker } from '../lib/notifications';
+
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -115,11 +115,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
     fetchAndMergeColumns();
   }, []);
 
-  // Register PWA Service Worker
+  // Register PWA Service Worker with explicit scope
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       // Register immediately. Waiting for window.load can miss the event in a PWA.
-      ensurePushServiceWorker().catch(err => {
+      const swUrl = `${basePath}/sw.js`;
+      const swScope = basePath ? `${basePath}/` : '/';
+      navigator.serviceWorker.register(swUrl, { scope: swScope }).catch(err => {
         console.error('PWA ServiceWorker registration failed:', err);
       });
     }
@@ -133,7 +135,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
           <link rel="icon" href={`${basePath}/irLogo.svg`} type="image/svg+xml" />
           <link rel="alternate icon" href={`${basePath}/favicon.ico`} />
           <link rel="shortcut icon" href={`${basePath}/irLogo.svg`} />
-          <link rel="manifest" href={`${basePath}/manifest.json`} />
+          <link rel="manifest" href={`${basePath}/api/manifest`} />
           <link rel="apple-touch-icon" href={`${basePath}/icons/apple-touch-icon.png`} />
           <meta name="theme-color" content="#3b82f6" />
           <meta name="mobile-web-app-capable" content="yes" />

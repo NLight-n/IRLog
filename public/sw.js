@@ -1,10 +1,23 @@
-// IRLog Service Worker v2
-const CACHE_NAME = 'irlog-cache-v2';
+// IRLog Service Worker v3 — subpath-aware
+const CACHE_NAME = 'irlog-cache-v3';
 
-// Static assets to pre-cache on SW install
+// Derive the base path from the SW's own scope URL.
+// When registered with scope "/irlog/", self.registration.scope will be
+// "https://claritymdt.snhrc.org/irlog/" and we extract "/irlog".
+// When deployed at root, this resolves to "".
+function getBasePath() {
+  try {
+    const scopeUrl = new URL(self.registration.scope);
+    // Remove trailing slash to get the base path prefix
+    return scopeUrl.pathname.replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+// Static assets to pre-cache on SW install (relative to SW scope)
 const PRECACHE_ASSETS = [
   './offline.html',
-  './manifest.json',
   './irLogo.svg',
   './favicon.ico',
   './icons/icon-192x192.png',
@@ -108,11 +121,17 @@ self.addEventListener('fetch', (event) => {
 
 // Background Push Notification Event Listener
 self.addEventListener('push', (event) => {
-  let data = { title: 'IRLog Alert', body: 'New update received.', url: '/worklist' };
+  const basePath = getBasePath();
+  let data = { title: 'IRLog Alert', body: 'New update received.', url: basePath + '/worklist' };
   
   if (event.data) {
     try {
-      data = event.data.json();
+      const parsed = event.data.json();
+      // Prefix incoming url with basePath if it's a relative path without it
+      if (parsed.url && parsed.url.startsWith('/') && basePath && !parsed.url.startsWith(basePath)) {
+        parsed.url = basePath + parsed.url;
+      }
+      data = parsed;
     } catch (e) {
       data.body = event.data.text();
     }
@@ -120,12 +139,12 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-192x192.png',
+    icon: basePath + '/icons/icon-192x192.png',
+    badge: basePath + '/icons/icon-192x192.png',
     tag: data.tag || `irlog-${Date.now()}`,
     renotify: true,
     data: {
-      url: data.url || '/worklist'
+      url: data.url || basePath + '/worklist'
     },
     vibrate: [200, 100, 200],
   };
@@ -140,7 +159,13 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const redirectUrl = event.notification.data?.url || '/worklist';
+  const basePath = getBasePath();
+  let redirectUrl = event.notification.data?.url || basePath + '/worklist';
+  
+  // Ensure the URL is within the app scope
+  if (redirectUrl.startsWith('/') && basePath && !redirectUrl.startsWith(basePath)) {
+    redirectUrl = basePath + redirectUrl;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

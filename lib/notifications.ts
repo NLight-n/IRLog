@@ -39,7 +39,9 @@ export async function ensurePushServiceWorker(): Promise<ServiceWorkerRegistrati
   }
 
   const workerUrl = getServiceWorkerUrl();
-  const registration = await navigator.serviceWorker.register(workerUrl);
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  const scope = basePath ? `${basePath}/` : '/';
+  const registration = await navigator.serviceWorker.register(workerUrl, { scope });
   if (registration.active) return registration;
 
   const activationTimeout = new Promise<never>((_, reject) => {

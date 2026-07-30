@@ -77,19 +77,98 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       dataAfter: updated,
     });
 
-    // Send push notification for updates
+    // Send push notification for updates with detailed change description
     const editorName = String((token as any).username || 'A user');
     const patientName = updated.patientName || before.patientName || 'Unnamed Patient';
     const modality = updated.modality || before.modality || 'IR';
     const procedureName = updated.procedureName || before.procedureName || 'Procedure';
 
-    let bodyText = `${patientName}'s appointment details updated by ${editorName}`;
-    if (before.stage !== updated.stage) {
-      bodyText = `${patientName}'s appointment stage changed to ${updated.stage} by ${editorName}`;
+    // Build specific change descriptions
+    const changes: string[] = [];
+    const fmtDate = (d: Date | null | undefined) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+
+    // Status changes (Not Done, Cancelled, etc.)
+    if (before.status !== updated.status) {
+      if (updated.status === 'Not Done') {
+        const reason = updated.notDoneReason ? ` — ${updated.notDoneReason}` : '';
+        changes.push(`Marked as Not Done${reason}`);
+      } else if (updated.status === 'Cancelled') {
+        changes.push('Marked as Cancelled');
+      } else {
+        changes.push(`Status → ${updated.status}`);
+      }
+    } else if (before.notDoneReason !== updated.notDoneReason && updated.notDoneReason) {
+      changes.push(`Not-done reason updated: ${updated.notDoneReason}`);
     }
 
+    // Stage transitions
+    if (before.stage !== updated.stage) {
+      const stageLabels: Record<string, string> = {
+        Pending: 'Pending',
+        OnEvaluation: 'On Evaluation',
+        Scheduled: 'Scheduled',
+        Done: 'Done',
+      };
+      changes.push(`Moved to ${stageLabels[updated.stage ?? ''] || updated.stage}`);
+    }
+
+    // Date changes
+    if (fmtDate(before.dateScheduled) !== fmtDate(updated.dateScheduled) && updated.dateScheduled) {
+      const fromStr = fmtDate(before.dateScheduled);
+      changes.push(fromStr
+        ? `Rescheduled from ${fromStr} → ${fmtDate(updated.dateScheduled)}`
+        : `Scheduled for ${fmtDate(updated.dateScheduled)}`);
+    }
+    if (fmtDate(before.dateDone) !== fmtDate(updated.dateDone) && updated.dateDone) {
+      changes.push(`Completed on ${fmtDate(updated.dateDone)}`);
+    }
+    if (fmtDate(before.dateEvaluated) !== fmtDate(updated.dateEvaluated) && updated.dateEvaluated) {
+      changes.push(`Evaluated on ${fmtDate(updated.dateEvaluated)}`);
+    }
+
+    // Appointment time change
+    if (before.appointmentTime !== updated.appointmentTime && updated.appointmentTime) {
+      changes.push(`Time changed to ${updated.appointmentTime}`);
+    }
+
+    // Procedure / modality change
+    if (before.procedureName !== updated.procedureName && updated.procedureName) {
+      changes.push(`Procedure → ${updated.procedureName}`);
+    }
+    if (before.modality !== updated.modality && updated.modality) {
+      changes.push(`Modality → ${updated.modality}`);
+    }
+
+    // Patient info change
+    if (before.patientName !== updated.patientName && updated.patientName) {
+      changes.push(`Patient name → ${updated.patientName}`);
+    }
+
+    // Notes change
+    if (before.notes !== updated.notes && updated.notes) {
+      changes.push('Notes updated');
+    }
+
+    // Pick notification title emoji & text based on the most significant change
+    let notifTitle = '✏️ Appointment Updated';
+    if (updated.status === 'Not Done' && before.status !== updated.status) {
+      notifTitle = '⚠️ Appointment Not Done';
+    } else if (updated.status === 'Cancelled' && before.status !== updated.status) {
+      notifTitle = '🚫 Appointment Cancelled';
+    } else if (before.stage !== updated.stage && updated.stage === 'Done') {
+      notifTitle = '✅ Appointment Completed';
+    } else if (before.stage !== updated.stage && updated.stage === 'Scheduled') {
+      notifTitle = '📅 Appointment Scheduled';
+    } else if (fmtDate(before.dateScheduled) !== fmtDate(updated.dateScheduled)) {
+      notifTitle = '📅 Appointment Rescheduled';
+    }
+
+    const bodyText = changes.length > 0
+      ? `${patientName} (${procedureName}): ${changes.join(' • ')} — by ${editorName}`
+      : `${patientName}'s appointment updated by ${editorName}`;
+
     await sendPushNotification({
-      title: '✏️ Appointment Updated',
+      title: notifTitle,
       body: bodyText,
       url: '/worklist',
     }).catch(err => console.error('Failed to trigger push notification:', err));
