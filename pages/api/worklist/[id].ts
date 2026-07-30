@@ -89,7 +89,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     await sendPushNotification({
-      excludeUserID: userId,
       title: '✏️ Appointment Updated',
       body: bodyText,
       url: '/worklist',
@@ -120,7 +119,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const procedureName = before.procedureName || 'Procedure';
 
     await sendPushNotification({
-      excludeUserID: userId,
       title: '❌ Appointment Cancelled',
       body: `${patientName} (${procedureName} - ${modality}) cancelled by ${editorName}`,
       url: '/worklist',

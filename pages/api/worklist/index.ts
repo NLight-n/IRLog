@@ -61,7 +61,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const procedureName = created.procedureName || 'Procedure';
 
     await sendPushNotification({
-      excludeUserID: userId,
       title: '📅 New Appointment Scheduled',
       body: `${patientName} scheduled for ${procedureName} (${modality}) by ${creatorName}`,
       url: '/worklist',

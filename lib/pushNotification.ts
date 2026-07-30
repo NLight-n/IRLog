@@ -48,7 +48,7 @@ export async function sendPushNotification(params: {
   body: string;
   url?: string;
   excludeUserID?: number;
-}) {
+}): Promise<{ total: number; sent: number; failed: number }> {
   try {
     // Find matching subscriptions
     const whereClause: any = {};
@@ -66,13 +66,20 @@ export async function sendPushNotification(params: {
       where: whereClause,
     });
 
-    if (subscriptions.length === 0) return;
+    if (subscriptions.length === 0) {
+      console.log('No push subscriptions found matching criteria:', whereClause);
+      return { total: 0, sent: 0, failed: 0 };
+    }
 
     const payload = JSON.stringify({
       title: params.title,
       body: params.body,
       url: params.url || '/',
+      timestamp: Date.now(),
     });
+
+    let sentCount = 0;
+    let failedCount = 0;
 
     const sendPromises = subscriptions.map(async (sub) => {
       try {
@@ -81,7 +88,9 @@ export async function sendPushNotification(params: {
           keys: sub.keys as any,
         };
         await webpush.sendNotification(pushSubscription, payload);
+        sentCount++;
       } catch (err: any) {
+        failedCount++;
         // If subscription has expired or is invalid (404 or 410 Gone), remove it from the DB
         if (err.statusCode === 404 || err.statusCode === 410) {
           console.log(`Pruning expired push subscription endpoint: ${sub.endpoint}`);
@@ -89,13 +98,16 @@ export async function sendPushNotification(params: {
             where: { id: sub.id },
           }).catch(() => {});
         } else {
-          console.error(`Error sending Web Push to endpoint ${sub.endpoint}:`, err);
+          console.error(`Error sending Web Push to endpoint ${sub.endpoint}:`, err?.message || err);
         }
       }
     });
 
     await Promise.all(sendPromises);
+    return { total: subscriptions.length, sent: sentCount, failed: failedCount };
   } catch (err) {
     console.error('Error in sendPushNotification helper:', err);
+    return { total: 0, sent: 0, failed: 0 };
   }
 }
+

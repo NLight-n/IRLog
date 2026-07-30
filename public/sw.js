@@ -122,14 +122,17 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-192x192.png',
+    tag: data.tag || `irlog-${Date.now()}`,
+    renotify: true,
     data: {
       url: data.url || '/worklist'
     },
-    vibrate: [100, 50, 100],
+    vibrate: [200, 100, 200],
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(data.title || 'IRLog Notification', options)
+      .catch((err) => console.error('Error in showNotification:', err))
   );
 });
 

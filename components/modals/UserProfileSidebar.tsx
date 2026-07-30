@@ -367,14 +367,57 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                 <div className="card-body">
                   <h3 className="text-lg font-semibold mb-2">Push Notifications</h3>
                   <p className="text-xs text-gray-500 mb-3">
-                    Receive real-time push notifications when appointments are scheduled, updated, or cancelled on the worklist.
+                    Receive real-time push notifications when appointments are scheduled, updated, or cancelled, plus daily morning summaries.
                   </p>
                   {notifPermission === 'granted' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ padding: '8px 12px', background: 'var(--color-accent-subtle, rgba(59,130,246,0.1))', borderRadius: '8px', border: '1px solid var(--color-accent, #3b82f6)', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-accent, #3b82f6)', fontSize: 13, fontWeight: 500 }}>
                         <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Push Notifications are Enabled
+                        Push Notifications are Active
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/notifications/test', { method: 'POST' });
+                            const data = await res.json();
+                            if (res.ok && data.ok) {
+                              alert(`✅ ${data.message}`);
+                            } else {
+                              alert(`❌ Notification Test Failed: ${data.message || 'Unknown error'}`);
+                            }
+                          } catch (err: any) {
+                            alert(`❌ Request Error: ${err.message}`);
+                          }
+                        }}
+                        className="btn btn-secondary w-full text-xs flex items-center justify-center gap-2"
+                        style={{ padding: '8px 12px', background: '#3b82f6', color: '#ffffff', borderColor: '#3b82f6', fontWeight: 600 }}
+                      >
+                        🧪 Send Test Push Notification
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/notifications/daily-summary', { method: 'POST' });
+                            const data = await res.json();
+                            if (res.ok && data.ok) {
+                              alert(`🌅 ${data.message}`);
+                            } else {
+                              alert(`❌ Daily Summary Failed: ${data.message || 'Unknown error'}`);
+                            }
+                          } catch (err: any) {
+                            alert(`❌ Request Error: ${err.message}`);
+                          }
+                        }}
+                        className="btn btn-secondary w-full text-xs flex items-center justify-center gap-2"
+                        style={{ padding: '8px 12px' }}
+                      >
+                        🌅 Trigger Daily Morning Update Test
+                      </button>
+
                       <button
                         type="button"
                         onClick={async () => {
@@ -387,7 +430,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                             alert(res.message);
                           }
                         }}
-                        className="btn btn-secondary w-full text-xs"
+                        className="btn btn-secondary w-full text-xs text-red-600 hover:text-red-700"
                         style={{ padding: '6px 12px' }}
                       >
                         Disable Notifications
@@ -429,6 +472,15 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                       Enable Push Notifications
                     </button>
                   )}
+
+                  {/* Mobile Troubleshooting Help Box */}
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg text-xs border border-blue-200 dark:border-gray-700">
+                    <strong className="text-blue-700 dark:text-blue-400 font-semibold block mb-1">📱 Mobile Phone Setup Instructions:</strong>
+                    <ul className="list-disc pl-4 space-y-1 text-gray-600 dark:text-gray-300">
+                      <li><strong>iPhone / iOS</strong>: Apple requires iOS 16.4+ and you <em>must</em> tap <strong>Share → Add to Home Screen</strong>, then open IRLog from your Home Screen icon to get push notifications.</li>
+                      <li><strong>Android</strong>: Ensure notifications are allowed in Chrome/Edge settings, and background battery optimization is turned off for the browser.</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
