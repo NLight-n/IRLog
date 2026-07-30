@@ -137,7 +137,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
           <link rel="shortcut icon" href={`${basePath}/irLogo.svg`} />
           <link rel="manifest" href={`${basePath}/api/manifest`} />
           <link rel="apple-touch-icon" href={`${basePath}/icons/apple-touch-icon.png`} />
-          <meta name="theme-color" content="#3b82f6" />
+          <meta name="theme-color" content="#18181b" />
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

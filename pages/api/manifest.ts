@@ -29,7 +29,7 @@ export default function handler(_req: NextApiRequest, res: NextApiResponse) {
     display: 'standalone',
     orientation: 'any',
     background_color: '#18181b',
-    theme_color: '#3b82f6',
+    theme_color: '#18181b',
     categories: ['medical', 'health', 'productivity'],
     icons: [
       {

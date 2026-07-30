@@ -185,7 +185,7 @@ export async function subscribeUserToPush(): Promise<{ ok: boolean; message: str
     // 3. Subscribe with current active VAPID key
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
+      applicationServerKey: urlBase64ToUint8Array(publicVapidKey).buffer as ArrayBuffer,
     });
 
     // 4. Send subscription object to Next.js API route
