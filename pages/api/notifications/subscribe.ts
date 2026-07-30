@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (typeof subscription.endpoint === 'string' && subscription.endpoint.includes('permanently-removed.invalid')) {
       return res.status(400).json({
-        message: 'Push messaging is blocked by your browser or network (detected invalid endpoint permanently-removed.invalid). If using Brave browser, please enable "Use Google Services for Push Messaging" in Brave Settings (brave://settings/privacy).',
+        message: 'Push messaging is blocked by browser privacy settings (detected invalid endpoint permanently-removed.invalid). In Microsoft Edge, set Tracking Prevention to "Balanced" (Settings → Privacy → Tracking Prevention) or add a site exception. In Brave, enable "Use Google Services for Push Messaging".',
       });
     }
 

@@ -12,6 +12,73 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
+export type PushDiagnostics = {
+  secureContext: boolean;
+  notificationPermission: NotificationPermission | 'unsupported';
+  serviceWorker: string;
+  pageControlled: boolean;
+  subscription: 'missing' | 'invalid' | 'valid' | 'unavailable';
+  endpointHost?: string;
+  vapidKey: 'available' | 'missing' | 'unreachable' | 'not-checked';
+  message: string;
+};
+
+/** Safe, device-local Push API diagnostics. Does not expose the endpoint token. */
+export async function getPushDiagnostics(): Promise<PushDiagnostics> {
+  const secureContext = window.isSecureContext;
+  const notificationPermission: NotificationPermission | 'unsupported' = 'Notification' in window
+    ? Notification.permission
+    : 'unsupported';
+  const base = {
+    secureContext,
+    notificationPermission,
+    serviceWorker: 'not found',
+    pageControlled: 'serviceWorker' in navigator && Boolean(navigator.serviceWorker.controller),
+    subscription: 'unavailable' as const,
+    vapidKey: 'not-checked' as const,
+  };
+
+  if (!secureContext) return { ...base, message: 'Push requires a secure HTTPS connection.' };
+  if (!('serviceWorker' in navigator)) return { ...base, message: 'This browser does not support service workers.' };
+
+  try {
+    // Do not use serviceWorker.ready: it can remain pending forever if activation fails.
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      return { ...base, subscription: 'missing' as const, message: 'No service worker is registered. Reload the installed app and try again.' };
+    }
+    const serviceWorker = registration.active?.state || registration.waiting?.state || registration.installing?.state || 'registered but inactive';
+    if (!registration.active) {
+      return { ...base, serviceWorker, subscription: 'missing' as const, message: 'The service worker has not activated. Close and reopen the PWA, then try again.' };
+    }
+    if (!('pushManager' in registration)) {
+      return { ...base, serviceWorker, message: 'This service worker does not support the Push API.' };
+    }
+
+    const pushSubscription = await registration.pushManager.getSubscription();
+    const endpoint = pushSubscription?.endpoint;
+    const endpointHost = endpoint ? new URL(endpoint).host : undefined;
+    const subscription = !endpoint ? 'missing' as const : endpoint.includes('permanently-removed.invalid') ? 'invalid' as const : 'valid' as const;
+    let vapidKey: PushDiagnostics['vapidKey'] = 'not-checked';
+    try {
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+      const response = await fetch(`${basePath}/api/notifications/vapid-key`);
+      const body = response.ok ? await response.json() : null;
+      vapidKey = body?.publicKey ? 'available' : response.status === 500 ? 'missing' : 'unreachable';
+    } catch {
+      vapidKey = 'unreachable';
+    }
+
+    const result = { ...base, serviceWorker, endpointHost, subscription, vapidKey };
+    if (subscription === 'invalid') return { ...result, message: 'The browser returned an invalid push endpoint. This is a browser or device push-service issue, not a VAPID mismatch.' };
+    if (subscription === 'missing') return { ...result, message: 'Service worker is active, but this device has no push subscription yet.' };
+    if (vapidKey !== 'available') return { ...result, message: 'A subscription exists, but the app could not confirm the server VAPID public key.' };
+    return { ...result, message: 'Service worker, push subscription, and server VAPID public key are all available.' };
+  } catch (err: any) {
+    return { ...base, message: `Could not inspect push diagnostics: ${err.message || String(err)}` };
+  }
+}
+
 /**
  * Request notification permission from the browser.
  */

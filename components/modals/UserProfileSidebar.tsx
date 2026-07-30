@@ -51,6 +51,8 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsMessage, setPrefsMessage] = useState('');
   const [notifPermission, setNotifPermission] = useState<string>('default');
+  const [pushDiagnostics, setPushDiagnostics] = useState<any>(null);
+  const [checkingPushDiagnostics, setCheckingPushDiagnostics] = useState(false);
 
   // New state for column preferences
   const [visibleColumns, setVisibleColumns] = useState<any[]>([]);
@@ -369,6 +371,41 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
                   <p className="text-xs text-gray-500 mb-3">
                     Receive real-time push notifications when appointments are scheduled, updated, or cancelled, plus daily morning summaries.
                   </p>
+                  <button
+                    type="button"
+                    disabled={checkingPushDiagnostics}
+                    onClick={async () => {
+                      setCheckingPushDiagnostics(true);
+                      try {
+                        const { getPushDiagnostics } = await import('../../lib/notifications');
+                        setPushDiagnostics(await getPushDiagnostics());
+                      } catch (err: any) {
+                        setPushDiagnostics({ message: `Could not run push diagnostics: ${err.message || String(err)}` });
+                      } finally {
+                        setCheckingPushDiagnostics(false);
+                      }
+                    }}
+                    className="btn btn-secondary w-full text-xs flex items-center justify-center gap-2 mb-3"
+                    style={{ padding: '8px 12px' }}
+                  >
+                    {checkingPushDiagnostics ? 'Checking Push Diagnostics…' : '🔎 Run Push Diagnostics'}
+                  </button>
+
+                  {pushDiagnostics && (
+                    <div className="mb-3 p-3 rounded-lg text-xs border" style={{ background: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.35)', color: 'var(--color-text, #1f2937)' }}>
+                      <strong className="block mb-2">Push diagnostics</strong>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 break-words">
+                        <span>Secure connection</span><span>{pushDiagnostics.secureContext === undefined ? '—' : pushDiagnostics.secureContext ? 'Yes' : 'No'}</span>
+                        <span>Notification permission</span><span>{pushDiagnostics.notificationPermission || '—'}</span>
+                        <span>Service worker</span><span>{pushDiagnostics.serviceWorker || '—'}</span>
+                        <span>Page controlled</span><span>{pushDiagnostics.pageControlled === undefined ? '—' : pushDiagnostics.pageControlled ? 'Yes' : 'No'}</span>
+                        <span>Push subscription</span><span>{pushDiagnostics.subscription || '—'}</span>
+                        <span>Endpoint host</span><span>{pushDiagnostics.endpointHost || '—'}</span>
+                        <span>Server VAPID key</span><span>{pushDiagnostics.vapidKey || '—'}</span>
+                      </div>
+                      <p className="mt-2 leading-5">{pushDiagnostics.message}</p>
+                    </div>
+                  )}
                   {notifPermission === 'granted' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ padding: '8px 12px', background: 'var(--color-accent-subtle, rgba(59,130,246,0.1))', borderRadius: '8px', border: '1px solid var(--color-accent, #3b82f6)', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-accent, #3b82f6)', fontSize: 13, fontWeight: 500 }}>
@@ -500,10 +537,11 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
 
                   {/* Mobile Troubleshooting Help Box */}
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg text-xs border border-blue-200 dark:border-gray-700">
-                    <strong className="text-blue-700 dark:text-blue-400 font-semibold block mb-1">📱 Mobile Phone Setup Instructions:</strong>
+                    <strong className="text-blue-700 dark:text-blue-400 font-semibold block mb-1">📱 Mobile Phone & Browser Setup:</strong>
                     <ul className="list-disc pl-4 space-y-1 text-gray-600 dark:text-gray-300">
+                      <li><strong>Microsoft Edge</strong>: Set Tracking Prevention to <strong>Balanced</strong> (Settings → Privacy, search, and services → Tracking prevention) or add IRLog to Exceptions.</li>
                       <li><strong>iPhone / iOS</strong>: Apple requires iOS 16.4+ and you <em>must</em> tap <strong>Share → Add to Home Screen</strong>, then open IRLog from your Home Screen icon to get push notifications.</li>
-                      <li><strong>Android</strong>: Ensure notifications are allowed in Chrome/Edge settings, and background battery optimization is turned off for the browser.</li>
+                      <li><strong>Android / Chrome</strong>: Ensure notifications are allowed in browser site settings, and background battery saver is not restricting the browser.</li>
                     </ul>
                   </div>
                 </div>
