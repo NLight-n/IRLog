@@ -13,10 +13,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'Invalid subscription object.' });
     }
 
+    if (typeof subscription.endpoint === 'string' && subscription.endpoint.includes('permanently-removed.invalid')) {
+      return res.status(400).json({
+        message: 'Push messaging is blocked by your browser or network (detected invalid endpoint permanently-removed.invalid). If using Brave browser, please enable "Use Google Services for Push Messaging" in Brave Settings (brave://settings/privacy).',
+      });
+    }
+
     try {
-      // Avoid duplicate endpoints for other/old users
+      // Clean up old endpoints for this user or endpoint to prevent stale key accumulation
       await prisma.pushSubscription.deleteMany({
-        where: { endpoint: subscription.endpoint },
+        where: {
+          OR: [
+            { endpoint: subscription.endpoint },
+            { userID: userId },
+          ],
+        },
       });
 
       // Save the new subscription

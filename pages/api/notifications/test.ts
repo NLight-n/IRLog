@@ -46,11 +46,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         message: `Successfully delivered test notification to ${result.sent} device(s)!`,
       });
     } else {
+      const errDetails = result.errors && result.errors.length > 0 ? result.errors.join(' | ') : 'Unknown push failure';
       return res.status(500).json({
         ok: false,
         sent: 0,
         total: result.total,
-        message: 'Failed to deliver notification. The device subscription may have expired or VAPID keys mismatch.',
+        message: `Failed to deliver push notification: ${errDetails}`,
       });
     }
   } catch (err: any) {

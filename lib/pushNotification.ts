@@ -48,8 +48,19 @@ export async function sendPushNotification(params: {
   body: string;
   url?: string;
   excludeUserID?: number;
-}): Promise<{ total: number; sent: number; failed: number }> {
+}): Promise<{ total: number; sent: number; failed: number; errors: string[] }> {
   try {
+    // Ensure VAPID details are set for this invocation
+    const pub = vapidPublicKey || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+    const priv = vapidPrivateKey || process.env.VAPID_PRIVATE_KEY || '';
+    if (pub && priv) {
+      webpush.setVapidDetails(
+        'mailto:admin@claritymdt.snhrc.org',
+        pub,
+        priv
+      );
+    }
+
     // Find matching subscriptions
     const whereClause: any = {};
     if (params.userID !== undefined) {
@@ -68,7 +79,7 @@ export async function sendPushNotification(params: {
 
     if (subscriptions.length === 0) {
       console.log('No push subscriptions found matching criteria:', whereClause);
-      return { total: 0, sent: 0, failed: 0 };
+      return { total: 0, sent: 0, failed: 0, errors: ['No active push subscriptions found in database.'] };
     }
 
     const payload = JSON.stringify({
@@ -80,35 +91,40 @@ export async function sendPushNotification(params: {
 
     let sentCount = 0;
     let failedCount = 0;
+    const errors: string[] = [];
 
     const sendPromises = subscriptions.map(async (sub) => {
       try {
+        const parsedKeys = typeof sub.keys === 'string' ? JSON.parse(sub.keys) : sub.keys;
         const pushSubscription = {
           endpoint: sub.endpoint,
-          keys: sub.keys as any,
+          keys: parsedKeys,
         };
         await webpush.sendNotification(pushSubscription, payload);
         sentCount++;
       } catch (err: any) {
         failedCount++;
         const statusCode = err.statusCode || err.status;
-        // If subscription is invalid or expired (400, 401, 403, 404, 410), prune it from DB
-        if (statusCode && statusCode >= 400 && statusCode < 500) {
-          console.log(`Pruning invalid/expired push subscription endpoint (status ${statusCode}): ${sub.endpoint}`);
+        const errMsg = `[HTTP ${statusCode || 'ERR'}]: ${err.body || err.message || JSON.stringify(err)}`;
+        errors.push(errMsg);
+        console.error(`WebPush failure for endpoint ${sub.endpoint.substring(0, 40)}...`, errMsg);
+
+        // If subscription is invalid/expired (4xx) or contains an invalid domain / ENOTFOUND network error, prune it from DB
+        const isInvalidEndpoint = sub.endpoint.includes('permanently-removed.invalid') || err.code === 'ENOTFOUND';
+        if ((statusCode && statusCode >= 400 && statusCode < 500) || isInvalidEndpoint) {
+          console.log(`Pruning invalid/unreachable push subscription endpoint: ${sub.endpoint}`);
           await prisma.pushSubscription.delete({
             where: { id: sub.id },
           }).catch(() => {});
-        } else {
-          console.error(`Error sending Web Push to endpoint ${sub.endpoint}:`, err?.message || err);
         }
       }
     });
 
     await Promise.all(sendPromises);
-    return { total: subscriptions.length, sent: sentCount, failed: failedCount };
-  } catch (err) {
+    return { total: subscriptions.length, sent: sentCount, failed: failedCount, errors };
+  } catch (err: any) {
     console.error('Error in sendPushNotification helper:', err);
-    return { total: 0, sent: 0, failed: 0 };
+    return { total: 0, sent: 0, failed: 0, errors: [err.message || String(err)] };
   }
 }
 
