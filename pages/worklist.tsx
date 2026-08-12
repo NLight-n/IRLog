@@ -1542,7 +1542,7 @@ export default function AppointmentPage() {
                                     }}
                                   >
                                     {/* Row 1: Patient Name (truncated) & Status Badge */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 2 }}>
                                       <div style={{
                                         fontWeight: 700,
                                         fontSize: 13,
