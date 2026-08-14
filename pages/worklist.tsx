@@ -445,12 +445,32 @@ export default function AppointmentPage() {
     return map;
   }, [items, daysList]);
 
-  // Dynamic grid template columns: Holiday columns with 0 items take 0.5fr width (50%), others take 1fr
+  // Dynamic grid template columns:
+  // - Empty Holiday is locked to 50% width (minmax(85px, 7.14%)) and NEVER expands unless it has an appointment.
+  // - Empty regular columns are set to 75% width (minmax(105px, 10.71%)) when other columns have appointments, allowing active columns to expand without stretching abnormally long.
+  // - Columns with appointments (or regular days in an empty week) take minmax(140px, 1fr) to dynamically occupy the remaining space.
   const gridTemplateColumns = useMemo(() => {
+    const hasAnyAppointments = daysList.some(day => (itemsByDay[day.dateKey] || []).length > 0);
+
     return daysList.map(day => {
       const itemCount = (itemsByDay[day.dateKey] || []).length;
-      const isSlimHoliday = !!day.holiday && itemCount === 0;
-      return isSlimHoliday ? '0.5fr' : '1fr';
+      const isHoliday = !!day.holiday;
+
+      if (hasAnyAppointments) {
+        // If there are appointments in the week:
+        // Any day with appointments expands to occupy the remaining space (1fr).
+        // Empty holidays stay at 50% width (7.14%).
+        // Empty regular days stay at 75% width (10.71%).
+        if (itemCount > 0) {
+          return 'minmax(140px, 1fr)';
+        }
+        return isHoliday ? 'minmax(85px, 7.14%)' : 'minmax(105px, 10.71%)';
+      } else {
+        // If no appointments in the entire week:
+        // Holiday stays at 50% width (7.14%) and does NOT expand.
+        // Regular days expand to fill the remaining space (1fr).
+        return isHoliday ? 'minmax(85px, 7.14%)' : 'minmax(140px, 1fr)';
+      }
     }).join(' ');
   }, [daysList, itemsByDay]);
 
@@ -1421,11 +1441,11 @@ export default function AppointmentPage() {
                           position: 'relative',
                           zIndex: 1,
                         }}>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: day.isToday ? 'var(--color-accent)' : 'var(--color-gray-800)' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: day.isToday ? 'var(--color-accent)' : 'var(--color-gray-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {day.dayName} {day.isToday && <span style={{ fontSize: 10, background: 'var(--color-accent)', color: '#fff', borderRadius: 4, padding: '1px 4px', marginLeft: 4 }}>Today</span>}
                             </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-gray-900)', marginTop: 2 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-gray-900)', marginTop: 2, whiteSpace: 'nowrap' }}>
                               {day.formattedDate}
                             </div>
                           </div>
@@ -1440,6 +1460,7 @@ export default function AppointmentPage() {
                             justifyContent: 'center',
                             fontSize: 11,
                             fontWeight: 700,
+                            flexShrink: 0,
                           }}>
                             {dayItems.length}
                           </span>
