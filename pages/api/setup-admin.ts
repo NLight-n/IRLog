@@ -42,6 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             editProcedureLog: true,
             editSettings: true,
             manageUsers: true,
+            editApptCard: true,
           },
         },
       },

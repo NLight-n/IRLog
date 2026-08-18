@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'POST') {
     if (!userId) return res.status(401).json({ message: 'Invalid user ID' });
     const dbPerms = await prisma.permission.findFirst({ where: { userID: userId } });
-    if (!dbPerms?.editProcedureLog) return res.status(403).json({ message: 'Forbidden' });
+    if (!dbPerms?.editApptCard) return res.status(403).json({ message: 'Forbidden' });
     const data = req.body || {};
     const now = new Date();
     const created = await prisma.workItem.create({

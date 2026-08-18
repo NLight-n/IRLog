@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'POST') {
-    if (!perms.editSettings && !perms.editProcedureLog) {
+    if (!perms.editSettings && !perms.editApptCard) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     const { date, name, type } = req.body;
@@ -44,8 +44,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (req.method === 'PATCH' || req.method === 'PUT') {
+    if (!perms.editSettings && !perms.editApptCard) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { id, date, name, type } = req.body || {};
+    if (!id) {
+      return res.status(400).json({ error: 'Missing holiday ID' });
+    }
+    if (!date || !name) {
+      return res.status(400).json({ error: 'Date and Name are required' });
+    }
+    try {
+      const holidayId = Number(id);
+      // Ensure date is not duplicated by another holiday
+      const existingConflict = await prisma.holiday.findFirst({
+        where: {
+          date: String(date),
+          NOT: { id: holidayId },
+        },
+      });
+      if (existingConflict) {
+        return res.status(400).json({ error: `A holiday on ${date} already exists ("${existingConflict.name}")` });
+      }
+
+      const updated = await prisma.holiday.update({
+        where: { id: holidayId },
+        data: {
+          date: String(date),
+          name: String(name),
+          type: type || 'Festival',
+        },
+      });
+      return res.status(200).json(updated);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || 'Failed to update holiday' });
+    }
+  }
+
   if (req.method === 'DELETE') {
-    if (!perms.editSettings && !perms.editProcedureLog) {
+    if (!perms.editSettings && !perms.editApptCard) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     const { id } = req.query;

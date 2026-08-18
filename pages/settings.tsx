@@ -1780,6 +1780,7 @@ function UserManagement({ navbarHeight = 0 }: { navbarHeight?: number }) {
                                   'viewOnly',
                                   'createProcedureLog',
                                   'editProcedureLog',
+                                  'editApptCard',
                                   'editSettings',
                                   'manageUsers',
                                 ].includes(k) && v === true
@@ -1847,6 +1848,7 @@ function UserModal({ open, onClose, onSave, initialData, navbarHeight = 0 }: any
       viewOnly: true,
       createProcedureLog: false,
       editProcedureLog: false,
+      editApptCard: false,
       editSettings: false,
       manageUsers: false,
       ...permissionsObj,
@@ -1868,6 +1870,7 @@ function UserModal({ open, onClose, onSave, initialData, navbarHeight = 0 }: any
           viewOnly: true,
           createProcedureLog: false,
           editProcedureLog: false,
+          editApptCard: false,
           editSettings: false,
           manageUsers: false,
           ...permissionsObj,
@@ -2005,6 +2008,16 @@ function UserModal({ open, onClose, onSave, initialData, navbarHeight = 0 }: any
                     className="rounded"
                   />
                   <span>Edit Procedure Log</span>
+                </label>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="perm_editApptCard"
+                    checked={form.permissions.editApptCard}
+                    onChange={handleChange}
+                    className="rounded"
+                  />
+                  <span>Edit Appointments (Worklist)</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input

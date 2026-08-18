@@ -94,6 +94,13 @@ export default function AppointmentPage() {
   const [newHolidayName, setNewHolidayName] = useState('');
   const [newHolidayType, setNewHolidayType] = useState<'Festival' | 'Personal'>('Festival');
 
+  // Inline Holiday Edit state
+  const [editingHolidayId, setEditingHolidayId] = useState<number | null>(null);
+  const [editHolidayDate, setEditHolidayDate] = useState('');
+  const [editHolidayName, setEditHolidayName] = useState('');
+  const [editHolidayType, setEditHolidayType] = useState<'Festival' | 'Personal'>('Festival');
+  const [isSavingHoliday, setIsSavingHoliday] = useState(false);
+
   // Caution prompt state for scheduling on a holiday
   const [pendingHolidayConfirm, setPendingHolidayConfirm] = useState<{
     type: 'drag' | 'submit';
@@ -269,7 +276,7 @@ export default function AppointmentPage() {
       return;
     }
     const perms = (session.user as any)?.permissions || {};
-    setCanEdit(!!perms.editProcedureLog);
+    setCanEdit(!!perms.editApptCard);
 
     loadAppointments();
     loadHolidays();
@@ -732,10 +739,57 @@ export default function AppointmentPage() {
         method: 'DELETE',
       });
       if (res.ok) {
+        if (editingHolidayId === id) handleCancelEditHoliday();
         loadHolidays();
       }
     } catch (err) {
       console.error('Failed to delete holiday:', err);
+    }
+  };
+
+  const handleStartEditHoliday = (h: HolidayItem) => {
+    setEditingHolidayId(h.id);
+    setEditHolidayDate(h.date);
+    setEditHolidayName(h.name);
+    setEditHolidayType((h.type as 'Festival' | 'Personal') || 'Festival');
+  };
+
+  const handleCancelEditHoliday = () => {
+    setEditingHolidayId(null);
+    setEditHolidayDate('');
+    setEditHolidayName('');
+    setEditHolidayType('Festival');
+  };
+
+  const handleSaveEditHoliday = async (id: number) => {
+    if (!editHolidayDate || !editHolidayName.trim()) {
+      alert('Date and Holiday Name are required.');
+      return;
+    }
+    setIsSavingHoliday(true);
+    try {
+      const res = await fetch('/api/holidays', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          date: editHolidayDate,
+          name: editHolidayName.trim(),
+          type: editHolidayType,
+        }),
+      });
+      if (res.ok) {
+        handleCancelEditHoliday();
+        loadHolidays();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to update holiday');
+      }
+    } catch (err) {
+      console.error('Failed to update holiday:', err);
+      alert('Failed to update holiday');
+    } finally {
+      setIsSavingHoliday(false);
     }
   };
 
@@ -2186,9 +2240,12 @@ export default function AppointmentPage() {
       {/* Manage Holiday List Modal */}
       <BottomSheetModal
         open={showHolidayModal}
-        onClose={() => setShowHolidayModal(false)}
+        onClose={() => {
+          setShowHolidayModal(false);
+          handleCancelEditHoliday();
+        }}
         title="Manage Holiday List"
-        maxWidth="580px"
+        maxWidth="620px"
       >
         <p style={{ fontSize: 13, color: 'var(--color-gray-600)', marginBottom: 14 }}>
           Set your recurring weekly off day or add specific Festival and Personal holidays. Holiday dates are automatically highlighted with caution prompts during scheduling.
@@ -2269,7 +2326,7 @@ export default function AppointmentPage() {
         </form>
 
         {/* Existing Holidays List */}
-        <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--color-gray-200)', borderRadius: 8 }}>
+        <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--color-gray-200)', borderRadius: 8 }}>
           {holidaysList.length === 0 ? (
             <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-gray-500)', fontSize: 13 }}>
               No custom holidays added yet.
@@ -2278,32 +2335,147 @@ export default function AppointmentPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--color-gray-100)', textAlign: 'left', borderBottom: '1px solid var(--color-gray-200)' }}>
-                  <th style={{ padding: '8px 12px' }}>Date</th>
+                  <th style={{ padding: '8px 12px', width: '140px' }}>Date</th>
                   <th style={{ padding: '8px 12px' }}>Holiday Name</th>
-                  <th style={{ padding: '8px 12px' }}>Type</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>Action</th>
+                  <th style={{ padding: '8px 12px', width: '120px' }}>Type</th>
+                  <th style={{ padding: '8px 12px', width: '130px', textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {holidaysList.map(h => (
-                  <tr key={h.id} style={{ borderBottom: '1px solid var(--color-gray-100)' }}>
-                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{h.date}</td>
-                    <td style={{ padding: '8px 12px' }}>{h.name}</td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: h.type === 'Festival' ? '#fef3c7' : '#e0f2fe', color: h.type === 'Festival' ? '#b45309' : '#0369a1' }}>
-                        {h.type === 'Festival' ? '🎉 Festival' : '🌴 Personal'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDeleteHoliday(h.id)}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {holidaysList.map(h => {
+                  const isEditingThis = editingHolidayId === h.id;
+                  if (isEditingThis) {
+                    return (
+                      <tr key={h.id} style={{ borderBottom: '1px solid var(--color-gray-200)', background: 'var(--color-gray-100)' }}>
+                        <td style={{ padding: '6px 8px' }}>
+                          <input
+                            type="date"
+                            required
+                            value={editHolidayDate}
+                            onChange={(e) => setEditHolidayDate(e.target.value)}
+                            style={{
+                              padding: '4px 6px',
+                              border: '1px solid var(--color-accent)',
+                              borderRadius: 4,
+                              background: 'var(--color-white)',
+                              color: 'var(--color-gray-900)',
+                              fontSize: 12,
+                              width: '100%',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Holiday Name"
+                            value={editHolidayName}
+                            onChange={(e) => setEditHolidayName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEditHoliday(h.id);
+                              if (e.key === 'Escape') handleCancelEditHoliday();
+                            }}
+                            style={{
+                              padding: '4px 8px',
+                              border: '1px solid var(--color-accent)',
+                              borderRadius: 4,
+                              background: 'var(--color-white)',
+                              color: 'var(--color-gray-900)',
+                              fontSize: 12,
+                              width: '100%',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <select
+                            value={editHolidayType}
+                            onChange={(e) => setEditHolidayType(e.target.value as any)}
+                            style={{
+                              padding: '4px 6px',
+                              border: '1px solid var(--color-accent)',
+                              borderRadius: 4,
+                              background: 'var(--color-white)',
+                              color: 'var(--color-gray-900)',
+                              fontSize: 12,
+                              width: '100%',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <option value="Festival">🎉 Festival</option>
+                            <option value="Personal">🌴 Personal</option>
+                          </select>
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEditHoliday(h.id)}
+                            disabled={isSavingHoliday}
+                            style={{
+                              background: 'var(--color-accent)',
+                              border: 'none',
+                              color: '#fff',
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              cursor: isSavingHoliday ? 'wait' : 'pointer',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              marginRight: 6,
+                            }}
+                          >
+                            {isSavingHoliday ? '...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEditHoliday}
+                            disabled={isSavingHoliday}
+                            style={{
+                              background: 'none',
+                              border: '1px solid var(--color-gray-300)',
+                              color: 'var(--color-gray-700)',
+                              padding: '3px 7px',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 500,
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={h.id} style={{ borderBottom: '1px solid var(--color-gray-100)' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 600 }}>{h.date}</td>
+                      <td style={{ padding: '8px 12px' }}>{h.name}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: h.type === 'Festival' ? '#fef3c7' : '#e0f2fe', color: h.type === 'Festival' ? '#b45309' : '#0369a1' }}>
+                          {h.type === 'Festival' ? '🎉 Festival' : '🌴 Personal'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditHoliday(h)}
+                          style={{ background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600, marginRight: 10 }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteHoliday(h.id)}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -2311,7 +2483,10 @@ export default function AppointmentPage() {
 
         <div style={{ marginTop: 16, textAlign: 'right' }}>
           <button
-            onClick={() => setShowHolidayModal(false)}
+            onClick={() => {
+              setShowHolidayModal(false);
+              handleCancelEditHoliday();
+            }}
             style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--color-gray-300)', background: 'var(--color-gray-100)', color: 'var(--color-gray-900)', cursor: 'pointer', fontWeight: 600 }}
           >
             Close

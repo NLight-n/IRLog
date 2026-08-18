@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'PATCH' || req.method === 'PUT') {
     if (!userId) return res.status(401).json({ message: 'Invalid user ID' });
     const dbPerms = await prisma.permission.findFirst({ where: { userID: userId } });
-    if (!dbPerms?.editProcedureLog) return res.status(403).json({ message: 'Forbidden' });
+    if (!dbPerms?.editApptCard) return res.status(403).json({ message: 'Forbidden' });
     const body = req.body || {};
     const data: any = {};
     if (body.stage && typeof body.stage === 'string') {
@@ -179,7 +179,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'DELETE') {
     if (!userId) return res.status(401).json({ message: 'Invalid user ID' });
     const dbPerms = await prisma.permission.findFirst({ where: { userID: userId } });
-    if (!dbPerms?.editProcedureLog) return res.status(403).json({ message: 'Forbidden' });
+    if (!dbPerms?.editApptCard) return res.status(403).json({ message: 'Forbidden' });
     const before = await prisma.workItem.findUnique({ where: { id } });
     if (!before) return res.status(404).json({ message: 'Not found' });
     await prisma.workItem.delete({ where: { id } });

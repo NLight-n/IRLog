@@ -157,12 +157,13 @@ This document provides a comprehensive specification and technical architecture 
     - **ViewOnly** (default for all users): Can only view the main procedure table, analytics, procedure details, and physicians list.
     - **CreateProcedureLog**: Permission required to create a new procedure log.
     - **EditProcedureLog**: Permission required to edit or delete a procedure log in the Procedure Details modal.
+    - **EditApptCard**: Permission required to perform CRUD operations on the Appointments Worklist page (create, edit, drag/reschedule, mark done/not done/cancelled, delete, manage holidays).
     - **EditSettings**: Permission required to edit the Physicians tab and view the Data Log.
     - **ManageUsers**: Permission required for the **User Management** subtab visibility and creating/editing users (assign roles, permissions).
   
   - **Assigning Permissions:**
     - Only an **admin** user can assign the `ManageUsers` permission to another user.
-    - Admin can assign `ViewOnly` by default to all users, and optionally assign specific permissions like `CreateProcedureLog`, `EditProcedureLog`, `EditSettings`.
+    - Admin can assign `ViewOnly` by default to all users, and optionally assign specific permissions like `CreateProcedureLog`, `EditProcedureLog`, `EditApptCard`, `EditSettings`.
 
   - **Admin User:** 
     - Admin can create users and assign roles and permissions during user creation.
@@ -189,7 +190,7 @@ This document provides a comprehensive specification and technical architecture 
   - `proID`, `patientStatus`, `modality`, `procedureName`, `timestamp`.
 
 - **Permissions Table:**
-  - `userID`, `permission (checkboxes for ViewOnly, CreateProcedureLog, EditProcedureLog, EditSettings, ManageUsers)`, `timestamp`.
+  - `userID`, `permission (checkboxes for ViewOnly, CreateProcedureLog, EditProcedureLog, EditApptCard, EditSettings, ManageUsers)`, `timestamp`.
 
 - **AuditLog Table:**
   - `logID`, `actionType`, `userID`, `affectedTable`, `affectedRowID`, `dataBefore` (JSON), `dataAfter` (JSON), `timestamp`.

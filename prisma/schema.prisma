@@ -67,6 +67,7 @@ model Permission {
   editProcedureLog   Boolean @default(false)
   editSettings       Boolean @default(false)
   manageUsers        Boolean @default(false)
+  editApptCard       Boolean @default(false)
   timestamp         DateTime @default(now())
 }
 
