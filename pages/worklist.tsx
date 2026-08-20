@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import NavBar from '../components/layout/NavBar';
 import * as XLSX from 'xlsx';
-import { FiClock, FiPlus, FiEdit2, FiCheckCircle, FiXCircle, FiChevronLeft, FiChevronRight, FiSearch, FiSlash, FiRotateCcw, FiMoreVertical, FiCalendar, FiRefreshCw, FiDownload, FiPrinter } from 'react-icons/fi';
+import { FiClock, FiPlus, FiEdit2, FiCheckCircle, FiXCircle, FiChevronLeft, FiChevronRight, FiSearch, FiSlash, FiRotateCcw, FiMoreVertical, FiCalendar, FiRefreshCw, FiDownload, FiPrinter, FiCopy, FiShare2, FiCheck } from 'react-icons/fi';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useAppSettings } from './_app';
@@ -71,6 +71,44 @@ function formatDateKey(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+function formatAppointmentCardText(item: AppointmentItem): string {
+  const lines: string[] = [];
+  lines.push(`Patient: ${item.patientName || 'N/A'}`);
+  lines.push(`ID: ${item.patientID || 'N/A'}`);
+
+  const ageStr = item.patientAge != null ? `${item.patientAge}Y` : '';
+  const sexStr = item.patientSex ? `${item.patientSex}` : '';
+  let ageSex = '';
+  if (ageStr && sexStr) {
+    ageSex = `${ageStr}/${sexStr}`;
+  } else if (ageStr) {
+    ageSex = ageStr;
+  } else if (sexStr) {
+    ageSex = sexStr;
+  }
+  if (ageSex) {
+    lines.push(`Age/Sex: ${ageSex}`);
+  }
+
+  if (item.dateScheduled) {
+    const formattedDate = new Date(item.dateScheduled).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timeStr = item.appointmentTime ? ` (${item.appointmentTime})` : '';
+    lines.push(`Scheduled Date: ${formattedDate}${timeStr}`);
+  }
+
+  if (item.modality) {
+    lines.push(`Modality: ${item.modality}`);
+  }
+
+  lines.push(`Procedure: ${item.procedureName || 'N/A'}`);
+
+  return lines.join('\n');
+}
+
 export default function AppointmentPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -136,6 +174,89 @@ export default function AppointmentPage() {
   const [editingItem, setEditingItem] = useState<AppointmentItem | null>(null);
   const [actionCard, setActionCard] = useState<AppointmentItem | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null);
+  const [copiedCardId, setCopiedCardId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(msg);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 2500);
+  };
+
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (e) {
+        console.warn('navigator.clipboard failed, attempting fallback', e);
+      }
+    }
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return successful;
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+      return false;
+    }
+  };
+
+  const handleCopyAppointment = async (item: AppointmentItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const text = formatAppointmentCardText(item);
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedCardId(item.id);
+      setTimeout(() => setCopiedCardId(null), 2000);
+      showToast('Patient details copied to clipboard!');
+    } else {
+      showToast('Failed to copy to clipboard');
+    }
+  };
+
+  const handleShareAppointment = async (item: AppointmentItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const text = formatAppointmentCardText(item);
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${item.patientName} (${item.patientID})`,
+          text: text,
+        });
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          return;
+        }
+        console.warn('navigator.share failed, falling back to copy', err);
+      }
+    }
+
+    const copied = await copyToClipboard(text);
+    if (copied) {
+      setCopiedCardId(item.id);
+      setTimeout(() => setCopiedCardId(null), 2000);
+      showToast('Share menu unavailable. Copied to clipboard!');
+    } else {
+      showToast('Failed to copy to clipboard');
+    }
+  };
+
   const lastTapRef = useRef<{ id: number; time: number } | null>(null);
 
   const [formState, setFormState] = useState({
@@ -1716,11 +1837,71 @@ export default function AppointmentPage() {
                                             <span style={{ wordBreak: 'break-word' }}>{item.notes}</span>
                                           </div>
                                         )}
-                                        {item.dateAdded && (
-                                          <div style={{ fontSize: 10, color: 'var(--color-gray-400)' }}>
-                                            Added: {new Date(item.dateAdded).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        {/* Bottom row: Left side shows added on date, Right side shows Copy & Share buttons */}
+                                        <div style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          marginTop: 2,
+                                          paddingTop: 2,
+                                          gap: 6,
+                                        }}>
+                                          <div style={{ fontSize: 10, color: 'var(--color-gray-400)', minHeight: 14 }}>
+                                            {item.dateAdded && (
+                                              <span>Added: {new Date(item.dateAdded).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                            )}
                                           </div>
-                                        )}
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                            <button
+                                              type="button"
+                                              title={copiedCardId === item.id ? 'Copied!' : 'Copy details'}
+                                              onClick={(e) => handleCopyAppointment(item, e)}
+                                              onMouseDown={(e) => e.stopPropagation()}
+                                              onTouchStart={(e) => e.stopPropagation()}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: 24,
+                                                height: 24,
+                                                padding: 0,
+                                                borderRadius: 4,
+                                                border: '1px solid var(--color-gray-300)',
+                                                background: copiedCardId === item.id ? '#dcfce7' : 'var(--color-gray-100)',
+                                                color: copiedCardId === item.id ? '#15803d' : 'var(--color-gray-700)',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease',
+                                              }}
+                                              className="hover:bg-gray-200 dark:hover:bg-gray-700"
+                                            >
+                                              {copiedCardId === item.id ? <FiCheck size={12} /> : <FiCopy size={12} />}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              title="Share details"
+                                              onClick={(e) => handleShareAppointment(item, e)}
+                                              onMouseDown={(e) => e.stopPropagation()}
+                                              onTouchStart={(e) => e.stopPropagation()}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: 24,
+                                                height: 24,
+                                                padding: 0,
+                                                borderRadius: 4,
+                                                border: '1px solid var(--color-gray-300)',
+                                                background: 'var(--color-gray-100)',
+                                                color: 'var(--color-gray-700)',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease',
+                                              }}
+                                              className="hover:bg-gray-200 dark:hover:bg-gray-700"
+                                            >
+                                              <FiShare2 size={12} />
+                                            </button>
+                                          </div>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -2036,16 +2217,60 @@ export default function AppointmentPage() {
                   ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''}
                 </div>
               </div>
-              <span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: '4px 8px',
-                borderRadius: 6,
-                background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
-                color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
-              }}>
-                {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  title={copiedCardId === actionCard.id ? 'Copied!' : 'Copy details'}
+                  onClick={(e) => handleCopyAppointment(actionCard, e)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    borderRadius: 6,
+                    border: '1px solid var(--color-gray-300)',
+                    background: copiedCardId === actionCard.id ? '#dcfce7' : 'var(--color-gray-100)',
+                    color: copiedCardId === actionCard.id ? '#15803d' : 'var(--color-gray-700)',
+                    cursor: 'pointer',
+                    gap: 4,
+                  }}
+                >
+                  {copiedCardId === actionCard.id ? <FiCheck size={12} /> : <FiCopy size={12} />}
+                  <span style={{ fontWeight: 600 }}>{copiedCardId === actionCard.id ? 'Copied' : 'Copy'}</span>
+                </button>
+                <button
+                  type="button"
+                  title="Share details"
+                  onClick={(e) => handleShareAppointment(actionCard, e)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    borderRadius: 6,
+                    border: '1px solid var(--color-gray-300)',
+                    background: 'var(--color-gray-100)',
+                    color: 'var(--color-gray-700)',
+                    cursor: 'pointer',
+                    gap: 4,
+                  }}
+                >
+                  <FiShare2 size={12} />
+                  <span style={{ fontWeight: 600 }}>Share</span>
+                </button>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
+                  color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
+                }}>
+                  {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
+                </span>
+              </div>
             </div>
 
             <div style={{ background: 'var(--color-gray-100)', padding: 10, borderRadius: 8, marginBottom: 16 }}>
@@ -2619,6 +2844,34 @@ export default function AppointmentPage() {
         onEdit={() => { }}
         navbarHeight={0}
       />
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 99999,
+            background: 'var(--color-white)',
+            color: 'var(--color-gray-900)',
+            border: '1px solid var(--color-gray-300)',
+            padding: '10px 18px',
+            borderRadius: 8,
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            animation: 'fadeIn 0.2s ease-out',
+            pointerEvents: 'none',
+          }}
+        >
+          <FiCheckCircle size={16} color="#22c55e" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }
