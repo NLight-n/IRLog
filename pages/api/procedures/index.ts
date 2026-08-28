@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET' && req.query['list-all'] === 'true') {
     // Return all procedures for dropdown selection
-    const allProcedures = await prisma.procedure.findMany({ select: { procedureName: true, proID: true } });
+    const allProcedures = await prisma.procedure.findMany({ select: { procedureName: true, proID: true, procedureCost: true, customCosts: true } });
     return res.status(200).json(allProcedures);
   }
 

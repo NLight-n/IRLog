@@ -149,6 +149,7 @@ model Procedure {
   proID         Int      @id @default(autoincrement())
   procedureName String
   procedureCost Float?
+  customCosts   Json?
   timestamp     DateTime @default(now())
 }
 

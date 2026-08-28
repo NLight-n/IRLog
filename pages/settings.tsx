@@ -922,7 +922,15 @@ function ProcedureManagement() {
                   {filteredProcedures.map((p: any) => (
                     <tr key={p.proID}>
                       <td className="font-medium">{p.procedureName}</td>
-                      <td>{p.procedureCost ? `${currency}${p.procedureCost}` : '-'}</td>
+                      <td>
+                        {p.customCosts && typeof p.customCosts === 'object' && Object.keys(p.customCosts).length > 0 ? (
+                          <MatrixCostBadge customCosts={p.customCosts} fallbackCost={p.procedureCost} currency={currency} />
+                        ) : p.procedureCost ? (
+                          `${currency}${p.procedureCost}`
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       <td>
                         <div className="flex gap-2">
                           {canEdit && (
@@ -957,86 +965,556 @@ function ProcedureManagement() {
           onClose={() => setShowModal(false)}
           onSave={handleSave}
           initialData={editData}
+          currency={currency}
         />
       )}
     </div>
   );
 }
 
-function ProcedureModal({ open, onClose, onSave, initialData }: any) {
-  const safeInitialData = initialData || {};
-  const [form, setForm] = React.useState<any>({
-    procedureName: '',
-    procedureCost: '',
-    ...safeInitialData,
+function MatrixCostBadge({ customCosts, fallbackCost, currency }: { customCosts: any; fallbackCost?: number | null | string; currency: string }) {
+  const [showPopover, setShowPopover] = React.useState(false);
+  const popoverRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setShowPopover(false);
+      }
+    }
+    if (showPopover) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPopover]);
+
+  if (!customCosts || typeof customCosts !== 'object' || Object.keys(customCosts).length === 0) {
+    return fallbackCost !== undefined && fallbackCost !== null && String(fallbackCost) !== '' ? <span>{currency}{fallbackCost}</span> : <span>-</span>;
+  }
+
+  const modalities = Object.keys(customCosts);
+  const rates: number[] = [];
+  modalities.forEach(m => {
+    const map = customCosts[m];
+    if (map && typeof map === 'object') {
+      ['OP', 'IP'].forEach(st => {
+        if (map[st] !== undefined && map[st] !== null && map[st] !== '' && !isNaN(Number(map[st]))) {
+          rates.push(Number(map[st]));
+        }
+      });
+    }
   });
+
+  const minRate = rates.length > 0 ? Math.min(...rates) : null;
+  const maxRate = rates.length > 0 ? Math.max(...rates) : null;
+  const rateSummary = rates.length > 0 
+    ? (minRate === maxRate ? `${currency}${minRate}` : `${currency}${minRate} - ${currency}${maxRate}`)
+    : 'Matrix';
+
+  return (
+    <div className="relative inline-block" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowPopover(!showPopover);
+        }}
+        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold transition-all cursor-pointer shadow-xs"
+        style={{
+          backgroundColor: 'var(--color-accent-light)',
+          color: 'var(--color-accent)',
+          border: '1px solid var(--color-accent)',
+        }}
+        title="Click to view tariff rate matrix"
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }}></span>
+        <span>{rateSummary}</span>
+        <span className="text-[10px] opacity-80 font-mono">({modalities.join(', ')})</span>
+        <span className="text-[10px]">▾</span>
+      </button>
+
+      {showPopover && (
+        <div
+          className="absolute z-50 left-0 mt-1.5 p-3 rounded-xl shadow-xl min-w-[260px] max-w-[340px]"
+          style={{
+            backgroundColor: 'var(--color-white)',
+            color: 'var(--color-gray-900)',
+            border: '1px solid var(--color-gray-300)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between pb-2 mb-2" style={{ borderBottom: '1px solid var(--color-gray-200)' }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-gray-700)' }}>
+              Rate Matrix (Modality × Status)
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPopover(false)}
+              className="text-xs font-bold px-1 hover:opacity-75"
+              style={{ color: 'var(--color-gray-500)' }}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="overflow-x-auto rounded" style={{ border: '1px solid var(--color-gray-200)' }}>
+            <table className="w-full text-xs text-left">
+              <thead style={{ backgroundColor: 'var(--color-gray-100)', color: 'var(--color-gray-800)', borderBottom: '1px solid var(--color-gray-200)' }}>
+                <tr>
+                  <th className="py-1.5 px-2 font-semibold">Modality</th>
+                  <th className="py-1.5 px-2 font-semibold text-right">OP Rate</th>
+                  <th className="py-1.5 px-2 font-semibold text-right">IP Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'var(--color-gray-200)' }}>
+                {modalities.map(mod => {
+                  const op = customCosts[mod]?.OP;
+                  const ip = customCosts[mod]?.IP;
+                  return (
+                    <tr key={mod} style={{ borderBottom: '1px solid var(--color-gray-200)' }}>
+                      <td className="py-1.5 px-2 font-semibold">
+                        <span
+                          className="px-1.5 py-0.5 rounded font-mono text-[11px] font-bold"
+                          style={{
+                            backgroundColor: 'var(--color-accent-light)',
+                            color: 'var(--color-accent)',
+                            border: '1px solid var(--color-accent)',
+                          }}
+                        >
+                          {mod}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2 text-right font-medium" style={{ color: 'var(--color-gray-800)' }}>
+                        {op !== undefined && op !== null && op !== '' ? `${currency}${op}` : '-'}
+                      </td>
+                      <td className="py-1.5 px-2 text-right font-medium" style={{ color: 'var(--color-gray-800)' }}>
+                        {ip !== undefined && ip !== null && ip !== '' ? `${currency}${ip}` : '-'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {fallbackCost !== undefined && fallbackCost !== null && String(fallbackCost) !== '' && (
+            <div className="mt-2 pt-2 text-[11px] flex justify-between" style={{ borderTop: '1px solid var(--color-gray-200)', color: 'var(--color-gray-600)' }}>
+              <span>Fallback / Base Cost:</span>
+              <span className="font-semibold" style={{ color: 'var(--color-gray-900)' }}>{currency}{fallbackCost}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const STANDARD_MODALITIES = ['USG', 'CT', 'OT', 'XF', 'DSA'];
+
+function ProcedureModal({ open, onClose, onSave, initialData, currency = '$' }: any) {
+  const safeInitialData = initialData || {};
+  const [procedureName, setProcedureName] = React.useState('');
+  const [costMode, setCostMode] = React.useState<'fixed' | 'matrix'>('fixed');
+  const [fixedCost, setFixedCost] = React.useState('');
+  const [fallbackCost, setFallbackCost] = React.useState('');
+  const [selectedModalities, setSelectedModalities] = React.useState<string[]>(['USG', 'CT']);
+  const [customModalities, setCustomModalities] = React.useState<string[]>([]);
+  const [matrixCosts, setMatrixCosts] = React.useState<Record<string, Record<string, string>>>({});
+  const [newModalityInput, setNewModalityInput] = React.useState('');
+  const [showAddModality, setShowAddModality] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
-      setForm({
-        procedureName: '',
-        procedureCost: '',
-        ...safeInitialData,
-      });
+      setProcedureName(safeInitialData.procedureName || '');
+      const hasMatrix = safeInitialData.customCosts && typeof safeInitialData.customCosts === 'object' && Object.keys(safeInitialData.customCosts).length > 0;
+      if (hasMatrix) {
+        setCostMode('matrix');
+        const matrixObj: Record<string, Record<string, string>> = {};
+        const modalitiesInMatrix: string[] = [];
+        for (const [mod, statusMap] of Object.entries(safeInitialData.customCosts)) {
+          modalitiesInMatrix.push(mod);
+          matrixObj[mod] = {};
+          if (typeof statusMap === 'object' && statusMap !== null) {
+            for (const [st, val] of Object.entries(statusMap as Record<string, any>)) {
+              matrixObj[mod][st] = val !== null && val !== undefined ? String(val) : '';
+            }
+          }
+        }
+        setMatrixCosts(matrixObj);
+        const uniqueModalities = Array.from(new Set([...modalitiesInMatrix, 'USG', 'CT']));
+        setSelectedModalities(modalitiesInMatrix.length > 0 ? modalitiesInMatrix : ['USG', 'CT']);
+        const extras = modalitiesInMatrix.filter(m => !STANDARD_MODALITIES.includes(m));
+        setCustomModalities(extras);
+        setFallbackCost(safeInitialData.procedureCost !== null && safeInitialData.procedureCost !== undefined ? String(safeInitialData.procedureCost) : '');
+        setFixedCost('');
+      } else {
+        setCostMode('fixed');
+        setFixedCost(safeInitialData.procedureCost !== null && safeInitialData.procedureCost !== undefined ? String(safeInitialData.procedureCost) : '');
+        setFallbackCost('');
+        setMatrixCosts({});
+        setSelectedModalities(['USG', 'CT']);
+        setCustomModalities([]);
+      }
     }
   }, [open, initialData]);
 
-  function handleChange(e: any) {
-    const { name, value } = e.target;
-    setForm((f: any) => ({ ...f, [name]: value }));
-  }
+  const allAvailableModalities = Array.from(new Set([...STANDARD_MODALITIES, ...customModalities]));
 
-  function handleSubmit(e: any) {
+  const toggleModality = (mod: string) => {
+    if (selectedModalities.includes(mod)) {
+      if (selectedModalities.length === 1) return; // Keep at least one
+      setSelectedModalities(selectedModalities.filter(m => m !== mod));
+    } else {
+      setSelectedModalities([...selectedModalities, mod]);
+    }
+  };
+
+  const handleMatrixCellChange = (modality: string, status: string, value: string) => {
+    setMatrixCosts(prev => ({
+      ...prev,
+      [modality]: {
+        ...(prev[modality] || {}),
+        [status]: value,
+      },
+    }));
+  };
+
+  const handleAddCustomModality = () => {
+    const trimmed = newModalityInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!allAvailableModalities.includes(trimmed)) {
+      setCustomModalities(prev => [...prev, trimmed]);
+    }
+    if (!selectedModalities.includes(trimmed)) {
+      setSelectedModalities(prev => [...prev, trimmed]);
+    }
+    setNewModalityInput('');
+    setShowAddModality(false);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(form);
-  }
+    if (!procedureName.trim()) return;
+
+    if (costMode === 'fixed') {
+      onSave({
+        procedureName: procedureName.trim(),
+        procedureCost: fixedCost !== '' ? parseFloat(fixedCost) : null,
+        customCosts: null,
+      });
+    } else {
+      // Clean matrix costs for selected modalities only
+      const cleanedMatrix: Record<string, Record<string, number>> = {};
+      let hasEntries = false;
+      for (const mod of selectedModalities) {
+        const statusMap = matrixCosts[mod];
+        if (statusMap) {
+          for (const [st, val] of Object.entries(statusMap)) {
+            if (val !== '' && val !== null && val !== undefined && !isNaN(Number(val))) {
+              if (!cleanedMatrix[mod]) cleanedMatrix[mod] = {};
+              cleanedMatrix[mod][st] = parseFloat(val);
+              hasEntries = true;
+            }
+          }
+        }
+      }
+
+      onSave({
+        procedureName: procedureName.trim(),
+        procedureCost: fallbackCost !== '' ? parseFloat(fallbackCost) : null,
+        customCosts: hasEntries ? cleanedMatrix : null,
+      });
+    }
+  };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="card max-w-md w-full mx-4">
-        <div className="card-header">
-          <h3 className="text-lg font-semibold">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="card w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl" style={{ width: '100%', maxWidth: '520px' }}>
+        <div className="card-header flex items-center justify-between pb-3" style={{ borderBottom: '1px solid var(--color-gray-200)' }}>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--color-black)', margin: 0 }}>
             {safeInitialData.proID ? 'Edit' : 'Add'} Procedure
           </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-lg font-bold hover:opacity-75"
+            style={{ color: 'var(--color-gray-500)' }}
+          >
+            ✕
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="card-body">
-          <div className="space-y-4">
-            <div className="form-group">
-              <label className="form-label">Procedure Name</label>
-              <input
-                name="procedureName"
-                value={form.procedureName || ''}
-                onChange={handleChange}
-                required
-                className="form-input"
-                placeholder="Enter procedure name"
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="card-body overflow-y-auto flex-1 p-4 space-y-4">
+          {/* Procedure Name */}
+          <div className="form-group mb-3">
+            <label className="form-label font-semibold">Procedure Name *</label>
+            <input
+              name="procedureName"
+              value={procedureName}
+              onChange={e => setProcedureName(e.target.value)}
+              required
+              className="form-input"
+              placeholder="e.g. Biopsy, PICC Line, Angioplasty"
+            />
+          </div>
 
-            <div className="form-group">
-              <label className="form-label">Cost</label>
-              <input
-                name="procedureCost"
-                type="number"
-                value={form.procedureCost || ''}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
-                className="form-input"
-                placeholder="0.00 (optional)"
-              />
+          {/* Pricing Mode Toggle */}
+          <div className="form-group mb-3">
+            <label className="form-label font-semibold mb-1.5">Cost Structure</label>
+            <div
+              className="grid grid-cols-2 gap-2 p-1 rounded-lg"
+              style={{ backgroundColor: 'var(--color-gray-100)', border: '1px solid var(--color-gray-200)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setCostMode('fixed')}
+                className="btn btn-sm"
+                style={costMode === 'fixed' ? {
+                  backgroundColor: 'var(--color-accent)',
+                  color: 'var(--color-accent-contrast, #fff)',
+                  borderColor: 'var(--color-accent)',
+                  fontWeight: 600,
+                } : {
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-gray-700)',
+                  border: 'none',
+                }}
+              >
+                🏷️ Fixed Cost
+              </button>
+              <button
+                type="button"
+                onClick={() => setCostMode('matrix')}
+                className="btn btn-sm"
+                style={costMode === 'matrix' ? {
+                  backgroundColor: 'var(--color-accent)',
+                  color: 'var(--color-accent-contrast, #fff)',
+                  borderColor: 'var(--color-accent)',
+                  fontWeight: 600,
+                } : {
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-gray-700)',
+                  border: 'none',
+                }}
+              >
+                📊 Rate Matrix (Modality × IP/OP)
+              </button>
             </div>
           </div>
 
-          <div className="flex gap-3 mt-6">
-            <button type="submit" className="btn btn-primary flex-1">
-              Save
-            </button>
+          {/* Fixed Cost Mode Input */}
+          {costMode === 'fixed' && (
+            <div className="form-group mb-3">
+              <label className="form-label">Cost ({currency})</label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-sm font-medium" style={{ color: 'var(--color-gray-500)' }}>{currency}</span>
+                <input
+                  name="fixedCost"
+                  type="number"
+                  value={fixedCost}
+                  onChange={e => setFixedCost(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className="form-input pl-8"
+                  placeholder="0.00 (optional)"
+                />
+              </div>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-gray-500)' }}>
+                Single standard cost applied across all modalities and patient types.
+              </p>
+            </div>
+          )}
+
+          {/* Custom Matrix Mode */}
+          {costMode === 'matrix' && (
+            <div className="space-y-3">
+              {/* Modality Selector */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="form-label font-medium text-xs mb-0">
+                    Select Modalities (X-Axis):
+                  </label>
+                  {!showAddModality ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddModality(true)}
+                      className="text-xs hover:underline font-medium"
+                      style={{ color: 'var(--color-accent)' }}
+                    >
+                      + Custom
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={newModalityInput}
+                        onChange={e => setNewModalityInput(e.target.value)}
+                        placeholder="e.g. MRI"
+                        className="form-input py-0.5 px-2 text-xs w-16 font-mono uppercase"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomModality();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomModality}
+                        className="btn btn-primary btn-sm py-0.5 px-2 text-xs min-h-0 h-6"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddModality(false);
+                          setNewModalityInput('');
+                        }}
+                        className="btn btn-secondary btn-sm py-0.5 px-2 text-xs min-h-0 h-6"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {allAvailableModalities.map(mod => {
+                    const isSelected = selectedModalities.includes(mod);
+                    return (
+                      <button
+                        key={mod}
+                        type="button"
+                        onClick={() => toggleModality(mod)}
+                        className="px-2.5 py-0.5 text-xs font-semibold rounded-full transition-all"
+                        style={isSelected ? {
+                          backgroundColor: 'var(--color-accent)',
+                          color: 'var(--color-accent-contrast, #fff)',
+                          border: '1px solid var(--color-accent)',
+                        } : {
+                          backgroundColor: 'var(--color-gray-100)',
+                          color: 'var(--color-gray-700)',
+                          border: '1px solid var(--color-gray-300)',
+                        }}
+                      >
+                        {isSelected ? '✓ ' : '+ '} {mod}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Compact 2D Rate Matrix Grid */}
+              <div>
+                <label className="form-label font-medium text-xs mb-1.5 block">
+                  Rate Table ({currency}):
+                </label>
+                <div
+                  className="rounded-lg overflow-hidden"
+                  style={{ border: '1px solid var(--color-gray-200)' }}
+                >
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead style={{ backgroundColor: 'var(--color-gray-100)', color: 'var(--color-gray-800)', borderBottom: '1px solid var(--color-gray-200)' }}>
+                        <tr>
+                          <th className="py-2 px-2.5 font-semibold w-24 text-[11px] uppercase tracking-wider">
+                            Status
+                          </th>
+                          {selectedModalities.map(mod => (
+                            <th key={mod} className="py-2 px-2 font-semibold text-center min-w-[85px]">
+                              <span
+                                className="inline-block px-1.5 py-0.5 rounded text-xs font-bold font-mono"
+                                style={{
+                                  backgroundColor: 'var(--color-accent-light)',
+                                  color: 'var(--color-accent)',
+                                  border: '1px solid var(--color-accent)',
+                                }}
+                              >
+                                {mod}
+                              </span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y" style={{ borderColor: 'var(--color-gray-200)' }}>
+                        {[
+                          { key: 'OP', label: 'OP', desc: 'Outpatient' },
+                          { key: 'IP', label: 'IP', desc: 'Inpatient' },
+                        ].map(st => (
+                          <tr key={st.key} style={{ borderBottom: '1px solid var(--color-gray-200)' }}>
+                            <td className="py-2 px-2.5 font-semibold">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="px-1.5 py-0.5 rounded text-xs font-bold"
+                                  style={{
+                                    backgroundColor: st.key === 'IP' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                    color: st.key === 'IP' ? 'var(--color-warning)' : 'var(--color-success)',
+                                    border: `1px solid ${st.key === 'IP' ? 'var(--color-warning)' : 'var(--color-success)'}`,
+                                  }}
+                                >
+                                  {st.label}
+                                </span>
+                                <span className="text-[11px]" style={{ color: 'var(--color-gray-500)' }}>
+                                  {st.desc}
+                                </span>
+                              </div>
+                            </td>
+                            {selectedModalities.map(mod => (
+                              <td key={mod} className="py-1.5 px-2 text-center">
+                                <div className="relative flex items-center min-w-[70px] max-w-[95px] mx-auto">
+                                  <span className="absolute left-2 text-[10px] pointer-events-none" style={{ color: 'var(--color-gray-400)' }}>
+                                    {currency}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    className="form-input text-right pl-5 pr-1.5 py-1 text-xs w-full font-mono font-medium rounded"
+                                    placeholder="0"
+                                    value={matrixCosts[mod]?.[st.key] || ''}
+                                    onChange={e => handleMatrixCellChange(mod, st.key, e.target.value)}
+                                  />
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Base/Fallback Rate */}
+              <div className="form-group mb-2">
+                <label className="form-label text-xs mb-1" style={{ color: 'var(--color-gray-700)' }}>
+                  Fallback Cost ({currency}) - Optional
+                </label>
+                <div className="relative flex items-center max-w-xs">
+                  <span className="absolute left-3 text-xs font-medium" style={{ color: 'var(--color-gray-500)' }}>{currency}</span>
+                  <input
+                    name="fallbackCost"
+                    type="number"
+                    value={fallbackCost}
+                    onChange={e => setFallbackCost(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    className="form-input pl-7 text-xs py-1.5"
+                    placeholder="0.00 (default fallback)"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-3" style={{ borderTop: '1px solid var(--color-gray-200)' }}>
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
               Cancel
+            </button>
+            <button type="submit" className="btn btn-primary flex-1">
+              Save Procedure
             </button>
           </div>
         </form>

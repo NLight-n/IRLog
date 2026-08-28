@@ -3,6 +3,33 @@ import { prisma } from '../../../lib/prisma/prisma';
 import { getToken } from 'next-auth/jwt';
 import { logAuditEvent } from '../../../lib/auditLogger';
 
+function sanitizeCustomCosts(customCosts: any) {
+  if (!customCosts) return null;
+  let parsed = customCosts;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const cleaned: Record<string, Record<string, number>> = {};
+  let hasEntries = false;
+  for (const [modality, statusMap] of Object.entries(parsed)) {
+    if (typeof statusMap === 'object' && statusMap !== null) {
+      for (const [status, val] of Object.entries(statusMap as Record<string, any>)) {
+        if (val !== '' && val !== null && val !== undefined && !isNaN(Number(val))) {
+          if (!cleaned[modality]) cleaned[modality] = {};
+          cleaned[modality][status] = parseFloat(String(val));
+          hasEntries = true;
+        }
+      }
+    }
+  }
+  return hasEntries ? cleaned : null;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   console.log('JWT TOKEN:', JSON.stringify(token));
@@ -23,6 +50,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.procedureCost === '') {
       data.procedureCost = null;
+    }
+    if ('customCosts' in data) {
+      data.customCosts = sanitizeCustomCosts(data.customCosts);
     }
     const created = await prisma.procedure.create({ data });
     
@@ -53,6 +83,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (data.procedureCost === '') {
       data.procedureCost = null;
+    }
+    if ('customCosts' in data) {
+      data.customCosts = sanitizeCustomCosts(data.customCosts);
     }
     const updated = await prisma.procedure.update({ where: { proID }, data });
     

@@ -164,9 +164,44 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
 
+  const resolveRateForProcedure = (proc: any, modality: string, status: string) => {
+    if (!proc) return { cost: '', isMatrix: false, matchText: '' };
+    if (proc.customCosts && typeof proc.customCosts === 'object') {
+      const modMap = proc.customCosts[modality];
+      if (modMap && typeof modMap === 'object') {
+        const rate = modMap[status];
+        if (rate !== undefined && rate !== null && rate !== '' && !isNaN(Number(rate))) {
+          return { cost: String(rate), isMatrix: true, matchText: `${modality} + ${status} tariff` };
+        }
+      }
+    }
+    if (proc.procedureCost !== undefined && proc.procedureCost !== null && proc.procedureCost !== '') {
+      return { cost: String(proc.procedureCost), isMatrix: false, matchText: 'standard rate' };
+    }
+    return { cost: '', isMatrix: false, matchText: '' };
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     if (viewOnly && !isEditing) return;
     const { name, value } = e.target;
+
+    if (name === 'modality' || name === 'status') {
+      const nextModality = name === 'modality' ? value : form?.modality;
+      const nextStatus = name === 'status' ? value : form?.status;
+      const matchedProc = procedures.find(p => p.procedureName && form?.procedureName && p.procedureName.toLowerCase() === form.procedureName.toLowerCase());
+      if (matchedProc && matchedProc.customCosts) {
+        const resolved = resolveRateForProcedure(matchedProc, nextModality, nextStatus);
+        if (resolved.isMatrix) {
+          setForm((f: any) => ({
+            ...f,
+            [name]: value,
+            procedureCost: resolved.cost,
+          }));
+          return;
+        }
+      }
+    }
+
     setForm((f: any) => ({ ...f, [name]: value }));
   };
 
@@ -193,10 +228,11 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
   };
 
   const handleProcedureSelect = (proc: any) => {
+    const resolved = resolveRateForProcedure(proc, form?.modality, form?.status);
     setForm((f: any) => ({
       ...f,
       procedureName: proc.procedureName,
-      procedureCost: proc.procedureCost ?? '',
+      procedureCost: resolved.cost !== '' ? resolved.cost : (proc.procedureCost ?? ''),
     }));
     setDropdownOpen(false);
     setProcedureSearch('');
@@ -207,6 +243,13 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
   const filteredProcedures = procedureSearch
     ? sortedProcedures.filter((p: any) => p.procedureName.toLowerCase().includes(procedureSearch.toLowerCase()))
     : sortedProcedures.slice(0, 20);
+
+  const currentMatchedProc = Array.isArray(procedures) && form?.procedureName
+    ? procedures.find(p => p.procedureName && p.procedureName.toLowerCase() === form.procedureName.toLowerCase())
+    : undefined;
+  const currentResolvedRate = currentMatchedProc
+    ? resolveRateForProcedure(currentMatchedProc, form?.modality, form?.status)
+    : null;
 
   const selectedProcedure = Array.isArray(procedures) && form ? procedures.find(p => p.proID === Number(form.procedureRef)) : undefined;
 
@@ -464,7 +507,9 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                       } else if (e.key === 'Enter') {
                         e.preventDefault();
                         if (filteredProcedures[procedureDropdownIndex]) {
-                          setForm((f: any) => ({ ...f, procedureName: filteredProcedures[procedureDropdownIndex].procedureName, procedureCost: filteredProcedures[procedureDropdownIndex].procedureCost ?? '' }));
+                          const p = filteredProcedures[procedureDropdownIndex];
+                          const resolved = resolveRateForProcedure(p, form?.modality, form?.status);
+                          setForm((f: any) => ({ ...f, procedureName: p.procedureName, procedureCost: resolved.cost !== '' ? resolved.cost : (p.procedureCost ?? '') }));
                           setDropdownOpen(false);
                           setProcedureSearch('');
                         }
@@ -481,13 +526,28 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                           className={`p-2 cursor-pointer hover:bg-gray-50 ${form?.procedureName === p.procedureName ? 'selected-accent' : ''} ${procedureDropdownIndex === idx ? 'selected-accent' : ''}`}
                           style={{ paddingLeft: '8px', paddingTop: '2px', paddingBottom: '2px', cursor: 'pointer' }}
                           onClick={() => {
-                            setForm((f: any) => ({ ...f, procedureName: p.procedureName, procedureCost: p.procedureCost ?? '' }));
+                            const resolved = resolveRateForProcedure(p, form?.modality, form?.status);
+                            setForm((f: any) => ({ ...f, procedureName: p.procedureName, procedureCost: resolved.cost !== '' ? resolved.cost : (p.procedureCost ?? '') }));
                             setDropdownOpen(false);
                             setProcedureSearch('');
                           }}
                           onMouseEnter={() => setProcedureDropdownIndex(idx)}
                         >
-                          <div className="text-sm font-medium">{p.procedureName}</div>
+                          <div className="text-sm font-medium flex items-center justify-between">
+                            <span>{p.procedureName}</span>
+                            {p.customCosts && typeof p.customCosts === 'object' && Object.keys(p.customCosts).length > 0 && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded font-semibold font-mono"
+                                style={{
+                                  backgroundColor: 'var(--color-accent-light)',
+                                  color: 'var(--color-accent)',
+                                  border: '1px solid var(--color-accent)',
+                                }}
+                              >
+                                Matrix
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -804,17 +864,63 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
             </div>
             
             <div className="form-group">
-              <label className="form-label">Cost</label>
-              <input 
-                name="procedureCost" 
-                type="number" 
-                value={form?.procedureCost || ''} 
-                onChange={handleChange} 
-                min="0" 
-                step="0.01" 
-                className="form-input"
-                placeholder="0.00 (optional)"
-              />
+              <label className="form-label">Cost ({currency})</label>
+              {(viewOnly && !isEditing) ? (
+                <div className="form-input bg-gray-50">{form?.procedureCost != null && form?.procedureCost !== '' ? `${currency}${form.procedureCost}` : '-'}</div>
+              ) : (
+                <>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-gray-500 font-medium text-sm">{currency}</span>
+                    <input 
+                      name="procedureCost" 
+                      type="number" 
+                      value={form?.procedureCost || ''} 
+                      onChange={handleChange} 
+                      min="0" 
+                      step="0.01" 
+                      className="form-input pl-8"
+                      placeholder="0.00 (optional)"
+                    />
+                  </div>
+                  {currentMatchedProc?.customCosts && currentResolvedRate?.isMatrix && (
+                    <div
+                      className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs font-medium"
+                      style={{ color: 'var(--color-accent)' }}
+                    >
+                      <span>✨</span>
+                      <span>Auto-filled for <strong>{currentResolvedRate.matchText}</strong> ({currency}{currentResolvedRate.cost})</span>
+                      {String(form?.procedureCost || '') !== String(currentResolvedRate.cost) && (
+                        <span className="font-semibold" style={{ color: 'var(--color-warning)' }}>(Modified)</span>
+                      )}
+                      {String(form?.procedureCost || '') !== String(currentResolvedRate.cost) && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((f: any) => ({ ...f, procedureCost: currentResolvedRate.cost }))}
+                          className="text-[11px] underline ml-1 font-semibold hover:opacity-80"
+                          style={{ color: 'var(--color-accent)' }}
+                        >
+                          Reset to tariff rate
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {currentMatchedProc && !currentResolvedRate?.isMatrix && currentMatchedProc.procedureCost != null && currentMatchedProc.procedureCost !== '' && (
+                    <div className="flex items-center gap-1.5 mt-1.5 text-xs" style={{ color: 'var(--color-gray-600)' }}>
+                      <span>Standard rate: {currency}{currentMatchedProc.procedureCost}</span>
+                      {String(form?.procedureCost || '') !== String(currentMatchedProc.procedureCost) && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((f: any) => ({ ...f, procedureCost: String(currentMatchedProc.procedureCost) }))}
+                          className="text-[11px] underline ml-1 hover:opacity-80"
+                          style={{ color: 'var(--color-accent)' }}
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
           
