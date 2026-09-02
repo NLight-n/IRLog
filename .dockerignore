@@ -16,3 +16,4 @@ yarn-error.log*
 *.test.*
 __tests__/
 coverage/
+android-widget

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors -->
+    <color name="primary">#2563EB</color>
+    <color name="primary_dark">#1D4ED8</color>
+    <color name="primary_light">#DBEAFE</color>
+    <color name="accent">#3B82F6</color>
+
+    <!-- Modality Colors (Matches IRLog Analytics Daily Trends Graph) -->
+    <color name="modality_usg">#3B82F6</color>
+    <color name="modality_usg_bg">#DBEAFE</color>
+    <color name="modality_usg_text">#1D4ED8</color>
+
+    <color name="modality_ct">#22C55E</color>
+    <color name="modality_ct_bg">#DCFCE7</color>
+    <color name="modality_ct_text">#15803D</color>
+
+    <color name="modality_ot">#EAB308</color>
+    <color name="modality_ot_bg">#FEF9C3</color>
+    <color name="modality_ot_text">#A16207</color>
+
+    <color name="modality_xf">#A855F7</color>
+    <color name="modality_xf_bg">#F3E8FF</color>
+    <color name="modality_xf_text">#7E22CE</color>
+
+    <color name="modality_dsa">#EF4444</color>
+    <color name="modality_dsa_bg">#FEE2E2</color>
+    <color name="modality_dsa_text">#B91C1C</color>
+
+    <color name="modality_other">#64748B</color>
+    <color name="modality_other_bg">#F1F5F9</color>
+    <color name="modality_other_text">#334155</color>
+
+    <!-- Status Colors -->
+    <color name="status_scheduled">#2563EB</color>
+    <color name="status_scheduled_bg">#EFF6FF</color>
+    <color name="status_done">#16A34A</color>
+    <color name="status_done_bg">#F0FDF4</color>
+    <color name="status_notdone">#DC2626</color>
+    <color name="status_notdone_bg">#FEF2F2</color>
+    <color name="status_cancelled">#6B7280</color>
+    <color name="status_cancelled_bg">#F3F4F6</color>
+
+    <!-- Widget Background & Text -->
+    <color name="widget_background">#FFFFFF</color>
+    <color name="widget_card_bg">#F8FAFC</color>
+    <color name="widget_card_border">#E2E8F0</color>
+    <color name="widget_text_primary">#0F172A</color>
+    <color name="widget_text_secondary">#64748B</color>
+    <color name="widget_text_muted">#94A3B8</color>
+    <color name="widget_divider">#E2E8F0</color>
+
+    <!-- UI Backgrounds -->
+    <color name="bg_light">#F8FAFC</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>

@@ -40,8 +40,9 @@ export async function registerBiometricCredential(): Promise<{ ok: boolean; mess
   }
 
   try {
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
     // 1. Get challenge & registration options from server
-    const optionsRes = await fetch('/api/auth/webauthn/register-options');
+    const optionsRes = await fetch(`${basePath}/api/auth/webauthn/register-options`);
     if (!optionsRes.ok) {
       const errData = await optionsRes.json();
       throw new Error(errData.error || 'Failed to initialize biometric registration.');
@@ -88,7 +89,7 @@ export async function registerBiometricCredential(): Promise<{ ok: boolean; mess
     const attestationObject = bufferToBase64Url(response.attestationObject);
 
     // 3. Send credential data back to server to save
-    const verifyRes = await fetch('/api/auth/webauthn/register-verify', {
+    const verifyRes = await fetch(`${basePath}/api/auth/webauthn/register-verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -118,8 +119,9 @@ export async function loginWithBiometrics(): Promise<{ ok: boolean; username?: s
   }
 
   try {
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
     // 1. Get login challenge from server
-    const optionsRes = await fetch('/api/auth/webauthn/login-options');
+    const optionsRes = await fetch(`${basePath}/api/auth/webauthn/login-options`);
     if (!optionsRes.ok) {
       throw new Error('Failed to start biometric login.');
     }
@@ -148,7 +150,7 @@ export async function loginWithBiometrics(): Promise<{ ok: boolean; username?: s
     const signature = bufferToBase64Url(response.signature);
 
     // 3. Verify assertion with server
-    const verifyRes = await fetch('/api/auth/webauthn/login-verify', {
+    const verifyRes = await fetch(`${basePath}/api/auth/webauthn/login-verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

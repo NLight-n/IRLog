@@ -44,3 +44,15 @@ next-env.d.ts
 
 # Uploaded files
 /public/uploads/
+
+# Android build outputs & IDE
+.gradle/
+**/build/
+*.apk
+*.aab
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/

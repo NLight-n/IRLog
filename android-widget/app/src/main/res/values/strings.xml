@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">IRLog Companion</string>
+    <string name="widget_name">Today\'s Worklist</string>
+    <string name="widget_description">Shows today\'s scheduled Interventional Radiology cases</string>
+    
+    <!-- Setup Screen -->
+    <string name="title_setup">IRLog Widget Setup</string>
+    <string name="subtitle_setup">Configure connection to your IRLog system to display today\'s worklist on your home screen.</string>
+    <string name="label_server_url">Server URL</string>
+    <string name="hint_server_url">https://irlog.hospital.com</string>
+    <string name="btn_passkey_auth">Sign In with Passkey (Biometrics)</string>
+    <string name="btn_test_sync">Sync Worklist Now</string>
+    <string name="btn_disconnect">Disconnect</string>
+    <string name="status_connected">Connected as %1$s</string>
+    <string name="status_disconnected">Not Connected</string>
+    <string name="status_last_sync">Last synced: %1$s</string>
+
+    <!-- Widget Strings -->
+    <string name="widget_title">Today\'s Worklist</string>
+    <string name="widget_no_cases">No procedures scheduled for today</string>
+    <string name="widget_tap_to_setup">Tap to set up IRLog Widget</string>
+    <string name="widget_all_done">All cases completed today</string>
+    <string name="widget_cases_count">%1$d Cases</string>
+    <string name="widget_refresh">Refresh</string>
+</resources>
