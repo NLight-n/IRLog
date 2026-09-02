@@ -23,7 +23,6 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
-import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
@@ -47,34 +46,39 @@ class IRLogWidget : GlanceAppWidget() {
         val cachedResponse = storage.getCachedWorklist()
         val serverUrl = storage.serverUrl
         val lastSync = storage.lastSyncTime
+        val isDark = storage.isDarkMode()
 
         provideContent {
             WidgetContent(
+                context = context,
                 isAuth = isAuth,
-                storage = storage,
                 cachedResponse = cachedResponse,
                 serverUrl = serverUrl,
-                lastSync = lastSync
+                lastSync = lastSync,
+                isDark = isDark
             )
         }
     }
 
     @Composable
     private fun WidgetContent(
+        context: Context,
         isAuth: Boolean,
-        storage: SecureTokenStorage,
         cachedResponse: com.irlog.widget.data.model.TodayWorklistResponse?,
         serverUrl: String,
-        lastSync: Long
+        lastSync: Long,
+        isDark: Boolean
     ) {
+        val theme = IRLogColors.getThemeColors(isDark)
+
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(IRLogColors.WidgetBackground)
+                .background(theme.background)
                 .cornerRadius(18.dp)
         ) {
             if (!isAuth) {
-                UnauthenticatedWidgetView()
+                UnauthenticatedWidgetView(isDark = isDark)
             } else {
                 val items = cachedResponse?.items ?: emptyList()
                 val totalCount = cachedResponse?.summary?.total ?: items.size
@@ -84,11 +88,12 @@ class IRLogWidget : GlanceAppWidget() {
                 Column(
                     modifier = GlanceModifier.fillMaxSize()
                 ) {
-                    // Top Header
+                    // Top Header with IRLog Branding & Theme Toggle
                     WidgetHeader(
                         totalCases = totalCount,
                         scheduledCases = scheduledCount,
-                        lastSyncTimestamp = lastSync
+                        lastSyncTimestamp = lastSync,
+                        isDark = isDark
                     )
 
                     // Thin Divider
@@ -96,7 +101,7 @@ class IRLogWidget : GlanceAppWidget() {
                         modifier = GlanceModifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(IRLogColors.Divider)
+                            .background(theme.divider)
                     ) {}
 
                     // Content: Empty State or Scrollable List
@@ -107,8 +112,10 @@ class IRLogWidget : GlanceAppWidget() {
                                 .defaultWeight()
                         ) {
                             EmptyWorklistState(
+                                context = context,
                                 isAllDone = isAllDone,
-                                serverUrl = serverUrl
+                                serverUrl = serverUrl,
+                                isDark = isDark
                             )
                         }
                     } else {
@@ -120,8 +127,10 @@ class IRLogWidget : GlanceAppWidget() {
                         ) {
                             items(items) { item ->
                                 WorkItemRow(
+                                    context = context,
                                     item = item,
-                                    serverUrl = serverUrl
+                                    serverUrl = serverUrl,
+                                    isDark = isDark
                                 )
                             }
                         }
@@ -140,7 +149,7 @@ class IRLogWidget : GlanceAppWidget() {
                             Text(
                                 text = "Synced $timeStr",
                                 style = TextStyle(
-                                    color = ColorProvider(IRLogColors.TextMuted),
+                                    color = ColorProvider(theme.textMuted),
                                     fontSize = 9.sp
                                 )
                             )
@@ -152,7 +161,9 @@ class IRLogWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun UnauthenticatedWidgetView() {
+    private fun UnauthenticatedWidgetView(isDark: Boolean) {
+        val theme = IRLogColors.getThemeColors(isDark)
+
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -164,7 +175,7 @@ class IRLogWidget : GlanceAppWidget() {
             Text(
                 text = "IRLog Setup Required",
                 style = TextStyle(
-                    color = ColorProvider(IRLogColors.TextPrimary),
+                    color = ColorProvider(theme.textPrimary),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
@@ -176,7 +187,7 @@ class IRLogWidget : GlanceAppWidget() {
             Text(
                 text = "Tap here to sign in with your Passkey and connect to today's worklist.",
                 style = TextStyle(
-                    color = ColorProvider(IRLogColors.TextSecondary),
+                    color = ColorProvider(theme.textSecondary),
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center
                 )
@@ -193,7 +204,7 @@ class IRLogWidget : GlanceAppWidget() {
                 Text(
                     text = "Sign In",
                     style = TextStyle(
-                        color = ColorProvider(IRLogColors.WidgetBackground),
+                        color = ColorProvider(IRLogColors.Light.background),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )

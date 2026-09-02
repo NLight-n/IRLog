@@ -2,14 +2,14 @@ package com.irlog.widget.data.storage
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.irlog.widget.data.model.TodayWorklistResponse
-import com.irlog.widget.data.model.WidgetCachedData
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class SecureTokenStorage(context: Context) {
+class SecureTokenStorage(private val context: Context) {
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -49,13 +49,45 @@ class SecureTokenStorage(context: Context) {
         get() = prefs.getLong(KEY_LAST_SYNC_TIME, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_SYNC_TIME, value).apply()
 
+    var serverUserTheme: String
+        get() = prefs.getString(KEY_SERVER_USER_THEME, "light") ?: "light"
+        set(value) = prefs.edit().putString(KEY_SERVER_USER_THEME, value).apply()
+
+    /**
+     * Theme preference options: "user_profile" (default), "light", "dark", "system"
+     */
+    var themePreference: String
+        get() = prefs.getString(KEY_THEME_PREFERENCE, THEME_USER_PROFILE) ?: THEME_USER_PROFILE
+        set(value) = prefs.edit().putString(KEY_THEME_PREFERENCE, value).apply()
+
     val isAuthenticated: Boolean
         get() = !authToken.isNullOrBlank() && serverUrl.isNotBlank()
 
+    fun isDarkMode(): Boolean {
+        return when (themePreference) {
+            THEME_LIGHT -> false
+            THEME_DARK -> true
+            THEME_SYSTEM -> {
+                val currentNightMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                currentNightMode == Configuration.UI_MODE_NIGHT_YES
+            }
+            else -> { // THEME_USER_PROFILE
+                serverUserTheme.equals("dark", ignoreCase = true)
+            }
+        }
+    }
+
+    fun toggleDarkMode() {
+        val currentlyDark = isDarkMode()
+        themePreference = if (currentlyDark) THEME_LIGHT else THEME_DARK
+    }
+
     fun saveCachedWorklist(response: TodayWorklistResponse) {
         val encoded = json.encodeToString(response)
+        serverUserTheme = response.userTheme
         prefs.edit()
             .putString(KEY_CACHED_WORKLIST, encoded)
+            .putString(KEY_SERVER_USER_THEME, response.userTheme)
             .putLong(KEY_LAST_SYNC_TIME, System.currentTimeMillis())
             .apply()
     }
@@ -75,6 +107,7 @@ class SecureTokenStorage(context: Context) {
             .remove(KEY_USERNAME)
             .remove(KEY_CACHED_WORKLIST)
             .remove(KEY_LAST_SYNC_TIME)
+            .remove(KEY_SERVER_USER_THEME)
             .apply()
     }
 
@@ -85,5 +118,12 @@ class SecureTokenStorage(context: Context) {
         private const val KEY_USERNAME = "username"
         private const val KEY_CACHED_WORKLIST = "cached_worklist"
         private const val KEY_LAST_SYNC_TIME = "last_sync_time"
+        private const val KEY_SERVER_USER_THEME = "server_user_theme"
+        private const val KEY_THEME_PREFERENCE = "theme_preference"
+
+        const val THEME_USER_PROFILE = "user_profile"
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+        const val THEME_SYSTEM = "system"
     }
 }

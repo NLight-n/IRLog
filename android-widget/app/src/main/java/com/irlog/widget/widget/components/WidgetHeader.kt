@@ -28,6 +28,7 @@ import com.irlog.widget.R
 import com.irlog.widget.ui.MainActivity
 import com.irlog.widget.ui.theme.IRLogColors
 import com.irlog.widget.widget.actions.RefreshActionCallback
+import com.irlog.widget.widget.actions.ToggleThemeActionCallback
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -36,17 +37,19 @@ import java.util.Locale
 fun WidgetHeader(
     totalCases: Int,
     scheduledCases: Int,
-    lastSyncTimestamp: Long
+    lastSyncTimestamp: Long,
+    isDark: Boolean = false
 ) {
+    val theme = IRLogColors.getThemeColors(isDark)
     val dateStr = SimpleDateFormat("EEE, dd MMM", Locale.getDefault()).format(Date())
 
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // App Icon and Title
+        // App Logo and Title
         Row(
             modifier = GlanceModifier
                 .defaultWeight()
@@ -56,24 +59,35 @@ fun WidgetHeader(
             Image(
                 provider = ImageProvider(R.drawable.ic_irlog_logo),
                 contentDescription = "IRLog",
-                modifier = GlanceModifier.size(24.dp)
+                modifier = GlanceModifier.size(28.dp)
             )
 
             Spacer(modifier = GlanceModifier.width(8.dp))
 
             Column {
-                Text(
-                    text = "Today's Worklist",
-                    style = TextStyle(
-                        color = ColorProvider(IRLogColors.TextPrimary),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "IRLog",
+                        style = TextStyle(
+                            color = ColorProvider(IRLogColors.Primary),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
-                )
+                    Spacer(modifier = GlanceModifier.width(4.dp))
+                    Text(
+                        text = "• Today",
+                        style = TextStyle(
+                            color = ColorProvider(theme.textPrimary),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
                 Text(
                     text = dateStr,
                     style = TextStyle(
-                        color = ColorProvider(IRLogColors.TextSecondary),
+                        color = ColorProvider(theme.textSecondary),
                         fontSize = 11.sp
                     )
                 )
@@ -86,8 +100,9 @@ fun WidgetHeader(
             scheduledCases == 0 && totalCases > 0 -> "All Done ✓"
             else -> "$scheduledCases Pending"
         }
-        val badgeBg = if (scheduledCases == 0 && totalCases > 0) IRLogColors.StatusDoneBg else IRLogColors.PrimaryLight
-        val badgeTextColor = if (scheduledCases == 0 && totalCases > 0) IRLogColors.StatusDone else IRLogColors.PrimaryDark
+        val statusDoneColors = IRLogColors.getStatusColors("Done", isDark)
+        val badgeBg = if (scheduledCases == 0 && totalCases > 0) statusDoneColors.bg else theme.badgeBg
+        val badgeTextColor = if (scheduledCases == 0 && totalCases > 0) statusDoneColors.text else theme.badgeText
 
         Box(
             modifier = GlanceModifier
@@ -106,21 +121,39 @@ fun WidgetHeader(
             )
         }
 
-        Spacer(modifier = GlanceModifier.width(8.dp))
+        Spacer(modifier = GlanceModifier.width(6.dp))
+
+        // Dark/Light Theme Toggle Button
+        Box(
+            modifier = GlanceModifier
+                .size(28.dp)
+                .background(theme.actionBg)
+                .cornerRadius(14.dp)
+                .clickable(actionRunCallback<ToggleThemeActionCallback>()),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                provider = ImageProvider(if (isDark) R.drawable.ic_sun else R.drawable.ic_moon),
+                contentDescription = "Toggle Theme",
+                modifier = GlanceModifier.size(15.dp)
+            )
+        }
+
+        Spacer(modifier = GlanceModifier.width(6.dp))
 
         // Refresh Button
         Box(
             modifier = GlanceModifier
-                .size(30.dp)
-                .background(IRLogColors.WidgetCardBg)
-                .cornerRadius(15.dp)
+                .size(28.dp)
+                .background(theme.actionBg)
+                .cornerRadius(14.dp)
                 .clickable(actionRunCallback<RefreshActionCallback>()),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_refresh),
                 contentDescription = "Refresh",
-                modifier = GlanceModifier.size(16.dp)
+                modifier = GlanceModifier.size(15.dp)
             )
         }
     }

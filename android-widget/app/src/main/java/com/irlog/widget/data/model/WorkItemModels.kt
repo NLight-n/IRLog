@@ -31,6 +31,7 @@ data class TodayWorklistSummary(
 data class TodayWorklistResponse(
     val date: String,
     val serverTime: String = "",
+    val userTheme: String = "light",
     val summary: TodayWorklistSummary = TodayWorklistSummary(),
     val items: List<WorkItemDto> = emptyList()
 )

@@ -47,6 +47,26 @@ class MainActivity : AppCompatActivity() {
             binding.etServerUrl.setText(storage.serverUrl)
         }
 
+        // Initialize Theme selection
+        when (storage.themePreference) {
+            SecureTokenStorage.THEME_LIGHT -> binding.rbThemeLight.isChecked = true
+            SecureTokenStorage.THEME_DARK -> binding.rbThemeDark.isChecked = true
+            SecureTokenStorage.THEME_SYSTEM -> binding.rbThemeSystem.isChecked = true
+            else -> binding.rbThemeUserProfile.isChecked = true
+        }
+
+        binding.rgTheme.setOnCheckedChangeListener { _, checkedId ->
+            storage.themePreference = when (checkedId) {
+                R.id.rbThemeLight -> SecureTokenStorage.THEME_LIGHT
+                R.id.rbThemeDark -> SecureTokenStorage.THEME_DARK
+                R.id.rbThemeSystem -> SecureTokenStorage.THEME_SYSTEM
+                else -> SecureTokenStorage.THEME_USER_PROFILE
+            }
+            lifecycleScope.launch {
+                IRLogWidget().updateAll(applicationContext)
+            }
+        }
+
         binding.btnPasskeyAuth.setOnClickListener {
             launchPasskeyAuth()
         }

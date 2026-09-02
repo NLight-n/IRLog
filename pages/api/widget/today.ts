@@ -33,6 +33,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const userId = parseInt(String(userPayload.id || userPayload.userID), 10);
+    let userTheme = 'light';
+    if (userId && !isNaN(userId)) {
+      const dbUser = await prisma.user.findUnique({
+        where: { userID: userId },
+        select: { theme: true },
+      });
+      if (dbUser?.theme) {
+        userTheme = dbUser.theme;
+      }
+    }
+
     const { date, tzOffset } = req.query;
     const offsetMin = typeof tzOffset === 'string' ? parseInt(tzOffset, 10) : null;
 
@@ -46,10 +58,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       targetDateStr = `${year}-${month}-${day}`;
     }
 
-    // Fetch all work items with scheduled status
+    // Fetch all work items
     const allItems = await prisma.workItem.findMany({
       orderBy: [
-        { appointmentTime: 'asc' },
         { displayOrder: 'asc' },
         { id: 'asc' },
       ],
@@ -76,6 +87,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return dateKey === targetDateStr;
     });
 
+    // Exact sorting rank as worklist.tsx (Scheduled -> NotDone -> Done -> Cancelled, then displayOrder)
+    const getStatusRank = (status: string) => {
+      if (status === 'Scheduled') return 0;
+      if (status === 'NotDone') return 1;
+      if (status === 'Done') return 2;
+      if (status === 'Cancelled') return 3;
+      return 4;
+    };
+
+    todayItems.sort((a, b) => {
+      const rankA = getStatusRank(a.status);
+      const rankB = getStatusRank(b.status);
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+      return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+    });
+
     // Summary stats
     const totalCount = todayItems.length;
     const scheduledCount = todayItems.filter(i => i.status === 'Scheduled').length;
@@ -92,16 +121,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       patientSex: item.patientSex,
       procedureName: item.procedureName || 'Procedure',
       modality: (item.modality || 'IR').toUpperCase(),
-      appointmentTime: item.appointmentTime || '',
+      appointmentTime: item.appointmentTime || null,
       status: item.status || 'Scheduled',
       stage: item.stage || 'Scheduled',
-      notes: item.notes || '',
+      notes: item.notes ? item.notes.trim() : null,
       displayOrder: item.displayOrder,
     }));
 
     return res.status(200).json({
       date: targetDateStr,
       serverTime: new Date().toISOString(),
+      userTheme,
       summary: {
         total: totalCount,
         scheduled: scheduledCount,

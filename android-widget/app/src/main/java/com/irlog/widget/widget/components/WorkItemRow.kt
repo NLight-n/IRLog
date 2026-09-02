@@ -1,13 +1,12 @@
 package com.irlog.widget.widget.components
 
-import android.content.Intent
-import android.net.Uri
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -25,13 +24,18 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.irlog.widget.data.model.WorkItemDto
 import com.irlog.widget.ui.theme.IRLogColors
+import com.irlog.widget.util.PwaIntentHelper
 
 @Composable
 fun WorkItemRow(
+    context: Context,
     item: WorkItemDto,
-    serverUrl: String
+    serverUrl: String,
+    isDark: Boolean = false
 ) {
-    // Open PWA or browser to the specific worklist item on click
+    val theme = IRLogColors.getThemeColors(isDark)
+
+    // Build URL directly to the specific procedure in the worklist
     val pwaUrl = if (serverUrl.isNotBlank()) {
         val base = if (serverUrl.endsWith("/")) serverUrl.dropLast(1) else serverUrl
         "$base/worklist?id=${item.id}"
@@ -39,20 +43,14 @@ fun WorkItemRow(
         "https://irlog.app/worklist"
     }
 
-    val openPwaIntent = Intent(Intent.ACTION_VIEW, Uri.parse(pwaUrl)).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-    }
+    // Launch installed PWA / Chrome WebAPK explicitly
+    val openPwaIntent = PwaIntentHelper.createPwaOpenIntent(context, pwaUrl)
 
-    // Get exact modality colors (matching Analytics daily trends graph)
-    val modalityColors = IRLogColors.getModalityColors(item.modality)
+    // Modality colors (matches Analytics daily trends graph)
+    val modalityColors = IRLogColors.getModalityColors(item.modality, isDark)
 
-    // Status styling
-    val (statusBg, statusText) = when (item.status) {
-        "Done" -> Pair(IRLogColors.StatusDoneBg, IRLogColors.StatusDone)
-        "NotDone" -> Pair(IRLogColors.StatusNotDoneBg, IRLogColors.StatusNotDone)
-        "Cancelled" -> Pair(IRLogColors.StatusCancelledBg, IRLogColors.StatusCancelled)
-        else -> Pair(IRLogColors.StatusScheduledBg, IRLogColors.StatusScheduled)
-    }
+    // Status colors
+    val statusColors = IRLogColors.getStatusColors(item.status, isDark)
 
     // Format Age / Sex
     val ageSexStr = buildString {
@@ -63,129 +61,159 @@ fun WorkItemRow(
         }
     }
 
+    val hasTime = !item.appointmentTime.isNullOrBlank()
+    val hasNotes = !item.notes.isNullOrBlank()
+
     Box(
         modifier = GlanceModifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 3.dp)
-            .background(IRLogColors.WidgetCardBg)
+            .background(theme.cardBg)
             .cornerRadius(12.dp)
             .clickable(actionStartActivity(openPwaIntent))
     ) {
-        Row(
+        Column(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(10.dp)
         ) {
-            // Time & Modality Column
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = GlanceModifier.width(58.dp)
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Time
-                Text(
-                    text = item.appointmentTime?.ifBlank { "--:--" } ?: "--:--",
-                    style = TextStyle(
-                        color = ColorProvider(IRLogColors.TextPrimary),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-
-                Spacer(modifier = GlanceModifier.height(4.dp))
-
-                // Modality Chip with Analytics Graph Color
-                Box(
-                    modifier = GlanceModifier
-                        .background(modalityColors.badgeBg)
-                        .cornerRadius(6.dp)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    contentAlignment = Alignment.Center
+                // Left Column: Modality Chip as Main + Time only if available
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = GlanceModifier.width(54.dp)
                 ) {
-                    Text(
-                        text = item.modality.uppercase(),
-                        style = TextStyle(
-                            color = ColorProvider(modalityColors.badgeText),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = GlanceModifier.width(8.dp))
-
-            // Patient Info & Procedure Column
-            Column(
-                modifier = GlanceModifier.defaultWeight()
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = item.patientName,
-                        style = TextStyle(
-                            color = ColorProvider(IRLogColors.TextPrimary),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        maxLines = 1
-                    )
-
-                    if (ageSexStr.isNotBlank()) {
-                        Spacer(modifier = GlanceModifier.width(4.dp))
+                    // Modality Chip (Main tag)
+                    Box(
+                        modifier = GlanceModifier
+                            .background(modalityColors.badgeBg)
+                            .cornerRadius(6.dp)
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = "($ageSexStr)",
+                            text = item.modality.uppercase(),
                             style = TextStyle(
-                                color = ColorProvider(IRLogColors.TextSecondary),
-                                fontSize = 11.sp
+                                color = ColorProvider(modalityColors.badgeText),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+
+                    // Time field: Show ONLY if available (no '--:--')
+                    if (hasTime) {
+                        Spacer(modifier = GlanceModifier.height(3.dp))
+                        Text(
+                            text = item.appointmentTime!!,
+                            style = TextStyle(
+                                color = ColorProvider(theme.textSecondary),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         )
                     }
                 }
 
-                Spacer(modifier = GlanceModifier.height(2.dp))
+                Spacer(modifier = GlanceModifier.width(10.dp))
 
-                // Procedure Name
-                Text(
-                    text = item.procedureName,
-                    style = TextStyle(
-                        color = ColorProvider(IRLogColors.TextSecondary),
-                        fontSize = 11.sp
-                    ),
-                    maxLines = 1
-                )
-
-                if (item.patientID.isNotBlank()) {
+                // Center Column: Procedure Name (Prominent) + Patient Info
+                Column(
+                    modifier = GlanceModifier.defaultWeight()
+                ) {
+                    // Procedure Name with increased font size
                     Text(
-                        text = "ID: ${item.patientID}",
+                        text = item.procedureName,
                         style = TextStyle(
-                            color = ColorProvider(IRLogColors.TextMuted),
-                            fontSize = 9.sp
+                            color = ColorProvider(theme.textPrimary),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
                         ),
                         maxLines = 1
+                    )
+
+                    Spacer(modifier = GlanceModifier.height(2.dp))
+
+                    // Patient Name and Age/Sex
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = item.patientName,
+                            style = TextStyle(
+                                color = ColorProvider(theme.textSecondary),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+
+                        if (ageSexStr.isNotBlank()) {
+                            Spacer(modifier = GlanceModifier.width(4.dp))
+                            Text(
+                                text = "• $ageSexStr",
+                                style = TextStyle(
+                                    color = ColorProvider(theme.textMuted),
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+
+                    if (item.patientID.isNotBlank()) {
+                        Text(
+                            text = "ID: ${item.patientID}",
+                            style = TextStyle(
+                                color = ColorProvider(theme.textMuted),
+                                fontSize = 10.sp
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Spacer(modifier = GlanceModifier.width(6.dp))
+
+                // Right Status Badge
+                Box(
+                    modifier = GlanceModifier
+                        .background(statusColors.bg)
+                        .cornerRadius(8.dp)
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = item.status,
+                        style = TextStyle(
+                            color = ColorProvider(statusColors.text),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     )
                 }
             }
 
-            Spacer(modifier = GlanceModifier.width(6.dp))
-
-            // Status Pill
-            Box(
-                modifier = GlanceModifier
-                    .background(statusBg)
-                    .cornerRadius(8.dp)
-                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = item.status,
-                    style = TextStyle(
-                        color = ColorProvider(statusText),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
+            // Notes Block: Show if notes content is present
+            if (hasNotes) {
+                Spacer(modifier = GlanceModifier.height(6.dp))
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .background(theme.notesBg)
+                        .cornerRadius(6.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "📝 ${item.notes}",
+                        style = TextStyle(
+                            color = ColorProvider(theme.notesText),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        maxLines = 2
                     )
-                )
+                }
             }
         }
     }
