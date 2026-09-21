@@ -22,6 +22,25 @@ interface IRLogApi {
         @Header("Authorization") authHeader: String,
         @Query("tzOffset") tzOffsetMinutes: Int? = null
     ): TodayWorklistResponse
+
+    @GET("api/procedures/analytics")
+    suspend fun getMonthlyTrends(
+        @Header("Authorization") authHeader: String,
+        @Query("type") type: String = "monthly",
+        @Query("limit") limit: Int = 6
+    ): com.irlog.widget.data.model.MonthlyTrendsResponse
+
+    @GET("api/procedures/analytics")
+    suspend fun getCumulativeMonthly(
+        @Header("Authorization") authHeader: String,
+        @Query("type") type: String = "cumulative"
+    ): com.irlog.widget.data.model.CumulativeMonthlyResponse
+
+    @GET("api/procedures/analytics")
+    suspend fun getCumulativeYearly(
+        @Header("Authorization") authHeader: String,
+        @Query("type") type: String = "yearly"
+    ): com.irlog.widget.data.model.CumulativeYearlyResponse
 }
 
 class IRLogApiService(private val storage: SecureTokenStorage) {
@@ -41,30 +60,31 @@ class IRLogApiService(private val storage: SecureTokenStorage) {
         .addInterceptor(loggingInterceptor)
         .build()
 
-    suspend fun fetchTodayWorklist(): Result<TodayWorklistResponse> = withContext(Dispatchers.IO) {
+    private fun createApi(): IRLogApi? {
         val serverUrl = storage.serverUrl
-        val token = storage.authToken
+        if (serverUrl.isBlank()) return null
+        val formattedUrl = if (serverUrl.endsWith("/")) serverUrl else "$serverUrl/"
+        val contentType = "application/json".toMediaType()
 
-        if (serverUrl.isBlank()) {
-            return@withContext Result.failure(IllegalStateException("Server URL is not configured."))
-        }
+        val retrofit = Retrofit.Builder()
+            .baseUrl(formattedUrl)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory(contentType))
+            .build()
+
+        return retrofit.create(IRLogApi::class.java)
+    }
+
+    suspend fun fetchTodayWorklist(): Result<TodayWorklistResponse> = withContext(Dispatchers.IO) {
+        val token = storage.authToken
         if (token.isNullOrBlank()) {
             return@withContext Result.failure(IllegalStateException("Not authenticated. Please sign in."))
         }
 
+        val api = createApi()
+            ?: return@withContext Result.failure(IllegalStateException("Server URL is not configured."))
+
         try {
-            val formattedUrl = if (serverUrl.endsWith("/")) serverUrl else "$serverUrl/"
-            val contentType = "application/json".toMediaType()
-
-            val retrofit = Retrofit.Builder()
-                .baseUrl(formattedUrl)
-                .client(okHttpClient)
-                .addConverterFactory(json.asConverterFactory(contentType))
-                .build()
-
-            val api = retrofit.create(IRLogApi::class.java)
-            
-            // Calculate device timezone offset in minutes
             val tz = TimeZone.getDefault()
             val offsetMinutes = -(tz.getOffset(System.currentTimeMillis()) / (1000 * 60))
 
@@ -79,6 +99,61 @@ class IRLogApiService(private val storage: SecureTokenStorage) {
             Result.success(response)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun fetchMonthlyTrends(limit: Int = 6): Result<com.irlog.widget.data.model.MonthlyTrendsResponse> = withContext(Dispatchers.IO) {
+        val token = storage.authToken
+        if (token.isNullOrBlank()) return@withContext Result.failure(IllegalStateException("Not authenticated"))
+        val api = createApi() ?: return@withContext Result.failure(IllegalStateException("No server configured"))
+
+        try {
+            val response = api.getMonthlyTrends(authHeader = "Bearer $token", limit = limit)
+            storage.saveCachedMonthlyTrends(response)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchCumulativeMonthly(): Result<com.irlog.widget.data.model.CumulativeMonthlyResponse> = withContext(Dispatchers.IO) {
+        val token = storage.authToken
+        if (token.isNullOrBlank()) return@withContext Result.failure(IllegalStateException("Not authenticated"))
+        val api = createApi() ?: return@withContext Result.failure(IllegalStateException("No server configured"))
+
+        try {
+            val response = api.getCumulativeMonthly(authHeader = "Bearer $token")
+            storage.saveCachedCumulativeMonthly(response)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchCumulativeYearly(): Result<com.irlog.widget.data.model.CumulativeYearlyResponse> = withContext(Dispatchers.IO) {
+        val token = storage.authToken
+        if (token.isNullOrBlank()) return@withContext Result.failure(IllegalStateException("Not authenticated"))
+        val api = createApi() ?: return@withContext Result.failure(IllegalStateException("No server configured"))
+
+        try {
+            val response = api.getCumulativeYearly(authHeader = "Bearer $token")
+            storage.saveCachedCumulativeYearly(response)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncAllAnalytics(): Boolean = withContext(Dispatchers.IO) {
+        if (!storage.isAuthenticated) return@withContext false
+        try {
+            fetchMonthlyTrends(6)
+            fetchCumulativeMonthly()
+            fetchCumulativeYearly()
+            storage.lastAnalyticsSyncTime = System.currentTimeMillis()
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 }

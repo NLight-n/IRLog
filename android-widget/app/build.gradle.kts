@@ -12,8 +12,8 @@ android {
         applicationId = "com.irlog.widget"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -68,8 +68,9 @@ dependencies {
     // Secure Storage for API Tokens
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
-    // Chrome Custom Tabs for Passkey / WebAuthn Web Flow
+    // Chrome Custom Tabs & Trusted Web Activity (TWA)
     implementation("androidx.browser:browser:1.8.0")
+    implementation("com.google.androidbrowserhelper:androidbrowserhelper:2.5.0")
 
     // Networking & Serialization
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

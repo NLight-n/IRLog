@@ -50,8 +50,18 @@
     <color name="widget_text_muted">#94A3B8</color>
     <color name="widget_divider">#E2E8F0</color>
 
-    <!-- UI Backgrounds -->
+    <!-- UI Backgrounds & Dark Theme Palette -->
     <color name="bg_light">#F8FAFC</color>
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
+
+    <!-- IRLog Premium Dark Theme Colors -->
+    <color name="irlog_dark_bg">#0F172A</color>
+    <color name="irlog_dark_card">#1E293B</color>
+    <color name="irlog_dark_card_subtle">#172033</color>
+    <color name="irlog_dark_border">#334155</color>
+    <color name="irlog_dark_text">#F8FAFC</color>
+    <color name="irlog_dark_text_secondary">#94A3B8</color>
+    <color name="irlog_dark_text_muted">#64748B</color>
+    <color name="irlog_dark_tile">#131D2F</color>
 </resources>

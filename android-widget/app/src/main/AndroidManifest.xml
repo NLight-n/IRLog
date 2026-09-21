@@ -4,6 +4,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Required to discover installed WebAPK packages on Android 11+ -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        android:maxSdkVersion="35" />
+
+    <queries>
+        <package android:name="com.android.chrome" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 
     <application
         android:name=".IRLogApplication"
@@ -15,15 +27,107 @@
         android:theme="@style/Theme.IRLogWidget"
         android:usesCleartextTraffic="true">
 
-        <!-- Main Configuration Activity -->
+        <!-- Main TWA Launcher Activity (Full-screen PWA) -->
         <activity
-            android:name=".ui.MainActivity"
-            android:exported="true">
+            android:name=".ui.IRLogTwaLauncherActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.IRLog.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- TWA Deep Linking for claritymdt.snhrc.org/irlog -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="claritymdt.snhrc.org"
+                    android:pathPrefix="/irlog" />
+            </intent-filter>
+
+            <!-- App Shortcuts (Long-press home screen icon) -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
+            <!-- TWA Configuration Meta-data -->
+            <meta-data
+                android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                android:value="https://claritymdt.snhrc.org/irlog" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+                android:resource="@color/irlog_dark_bg" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR"
+                android:resource="@color/irlog_dark_bg" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_DIVIDER_COLOR"
+                android:resource="@android:color/transparent" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
+                android:resource="@drawable/ic_irlog_logo" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
+                android:resource="@color/irlog_dark_bg" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
+                android:value="300" />
+            <meta-data
+                android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
+                android:value="com.irlog.widget.fileprovider" />
         </activity>
+
+        <!-- FileProvider for TWA Splash Image Sharing -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.irlog.widget.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filepaths" />
+        </provider>
+
+        <!-- TWA Web Push Notification Delegation Service -->
+        <service
+            android:name="com.google.androidbrowserhelper.trusted.DelegationService"
+            android:enabled="true"
+            android:exported="true">
+            <meta-data
+                android:name="android.support.customtabs.trusted.SMALL_ICON"
+                android:resource="@drawable/ic_notification" />
+            <intent-filter>
+                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!-- TWA Native Notification Permission Prompt Activity -->
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity"
+            android:exported="false" />
+
+        <!-- Widget & Sync Settings Activity (Dark theme) -->
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="true"
+            android:theme="@style/Theme.IRLogWidget"
+            android:label="@string/shortcut_settings_long">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Backward-compatibility alias for MainActivity -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:theme="@style/Theme.IRLogWidget"
+            android:exported="false" />
 
         <!-- Deep Link Receiver for Passkey / WebAuthn Callback -->
         <activity
@@ -41,17 +145,99 @@
             </intent-filter>
         </activity>
 
-        <!-- Glance AppWidget Receiver -->
+        <!-- Direct 1-Tap Widget Auth Initiator -->
+        <activity
+            android:name=".ui.WidgetAuthRedirectActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Dedicated PWA Launcher Activity (Legacy fallback) -->
+        <activity
+            android:name=".ui.PwaLauncherActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- Widget Receivers (grouped under IRLog application,     -->
+        <!-- each with distinct widget name in the picker)          -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+
+        <!-- Small Widget (2×1): Quick Glance -->
+        <receiver
+            android:name=".widget.IRLogSmallWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_small_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/irlog_widget_small_info" />
+        </receiver>
+
+        <!-- Medium Widget (2×2): Summary -->
+        <receiver
+            android:name=".widget.IRLogMediumWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_medium_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/irlog_widget_medium_info" />
+        </receiver>
+
+        <!-- Large Widget (4×3): Today's Worklist -->
         <receiver
             android:name=".widget.IRLogWidgetReceiver"
             android:exported="true"
-            android:label="@string/widget_name">
+            android:label="@string/widget_large_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/irlog_widget_info" />
+        </receiver>
+
+        <!-- Monthly Trends Widget (4×2): Cases & Cost -->
+        <receiver
+            android:name=".widget.MonthlyTrendsWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_monthly_trends_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/irlog_widget_monthly_trends_info" />
+        </receiver>
+
+        <!-- Cumulative Monthly Worm Widget (4×2): 3-Month Comparison -->
+        <receiver
+            android:name=".widget.MonthlyCumulativeWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_monthly_cumulative_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/irlog_widget_monthly_cumulative_info" />
+        </receiver>
+
+        <!-- Cumulative Yearly Worm Widget (4×2): 3-Year Comparison -->
+        <receiver
+            android:name=".widget.YearlyCumulativeWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_yearly_cumulative_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/irlog_widget_yearly_cumulative_info" />
         </receiver>
 
     </application>

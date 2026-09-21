@@ -9,6 +9,7 @@
     android:minResizeHeight="110dp"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
-    android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/glance_default_loading_layout">
+    android:updatePeriodMillis="0"
+    android:previewLayout="@layout/widget_preview_large"
+    android:initialLayout="@layout/widget_preview_large">
 </appwidget-provider>

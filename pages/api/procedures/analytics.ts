@@ -1,31 +1,52 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma/prisma';
 import { getToken } from 'next-auth/jwt';
+import jwt from 'jsonwebtoken';
 import { startOfMonth, subMonths, format, startOfYear, endOfYear, parseISO } from 'date-fns';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  if (!token) return res.status(401).json({ message: 'Unauthorized' });
-  const user = token;
-  const perms = Array.isArray(user.permissions) ? user.permissions[0] : user.permissions;
-  if (!perms?.viewOnly) return res.status(403).json({ message: 'Forbidden' });
+  let user: any = null;
+  const authHeader = req.headers.authorization;
 
-  const { type, dateFrom, dateTo, modality, monthOffset: monthOffsetParam } = req.query;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || 'irlog_widget_fallback_secret_key';
+    try {
+      user = jwt.verify(token, secret);
+    } catch {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET || 'changeme');
+      } catch {
+        return res.status(401).json({ message: 'Invalid or expired widget token' });
+      }
+    }
+  } else {
+    user = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  }
+
+  if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+  if (user.permissions) {
+    const perms = Array.isArray(user.permissions) ? user.permissions[0] : user.permissions;
+    if (!perms?.viewOnly) return res.status(403).json({ message: 'Forbidden' });
+  }
+
+  const { type, dateFrom, dateTo, modality, monthOffset: monthOffsetParam, limit: limitParam } = req.query;
 
   try {
     if (type === 'monthly') {
-      // Monthly trends: last 12 months, filtered by modality
-      // Use UTC dates to avoid timezone issues
+      // Monthly trends: customizable window (default 12 months, widget can request e.g. 6 or 8)
       const now = new Date();
       const currentYear = now.getUTCFullYear();
       const currentMonth = now.getUTCMonth();
       const currentDay = now.getUTCDate();
 
-      // monthOffset shifts the 12-month window backwards (0 = current, 1 = 1 month back, etc.)
+      // monthOffset shifts the window backwards (0 = current, 1 = 1 month back, etc.)
       const offsetVal = parseInt(monthOffsetParam as string || '0', 10) || 0;
+      const limitVal = Math.min(Math.max(parseInt(limitParam as string || '12', 10) || 12, 1), 24);
 
       const months = [];
-      for (let i = 11; i >= 0; i--) {
+      for (let i = limitVal - 1; i >= 0; i--) {
         // Calculate month offset from current month, adjusted by the navigation offset
         let year = currentYear;
         let month = currentMonth - i - offsetVal;
@@ -168,6 +189,120 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         monthLabel: `${monthNames[targetMonth]} ${targetYear}`
       });
     }
+    if (type === 'cumulative') {
+      // Cricket Worm cumulative case counts for current month + last 12 months
+      const now = new Date();
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth(); // 0-indexed
+      const currentDay = now.getUTCDate();
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      // Start of 12 months ago
+      let startYear = currentYear;
+      let startMonth = currentMonth - 12;
+      while (startMonth < 0) {
+        startMonth += 12;
+        startYear -= 1;
+      }
+      const windowStartDate = new Date(Date.UTC(startYear, startMonth, 1, 0, 0, 0, 0));
+      const windowEndDate = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999));
+
+      const where: any = {
+        procedureDate: {
+          gte: windowStartDate,
+          lte: windowEndDate,
+        },
+      };
+      if (modality && modality !== 'All') {
+        where.modality = modality;
+      }
+
+      // Single query for all procedures across the 13-month window
+      const logs = await prisma.procedureLog.findMany({
+        where,
+        select: {
+          procedureDate: true,
+        },
+      });
+
+      // Group counts by "YYYY-MM" and day
+      const counts: Record<string, Record<number, number>> = {};
+      for (const log of logs) {
+        const d = new Date(log.procedureDate);
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        const day = d.getUTCDate();
+        const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+        if (!counts[key]) counts[key] = {};
+        counts[key][day] = (counts[key][day] || 0) + 1;
+      }
+
+      // Current month cumulative data
+      const currentDaysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
+      const currentKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+      const currentData: (number | null)[] = [];
+      let currentCum = 0;
+      for (let day = 1; day <= 31; day++) {
+        if (day <= currentDay) {
+          currentCum += (counts[currentKey]?.[day] || 0);
+          currentData.push(currentCum);
+        } else {
+          currentData.push(null);
+        }
+      }
+
+      const currentMonthInfo = {
+        key: currentKey,
+        label: `${monthNames[currentMonth]} ${currentYear}`,
+        total: currentCum,
+        currentDay,
+        daysInMonth: currentDaysInMonth,
+        data: currentData,
+      };
+
+      // Past 12 months cumulative data
+      const pastMonths = [];
+      for (let offset = 1; offset <= 12; offset++) {
+        let y = currentYear;
+        let m = currentMonth - offset;
+        while (m < 0) {
+          m += 12;
+          y -= 1;
+        }
+        const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+        const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+        const label = `${monthNames[m]} ${y}`;
+        const data: (number | null)[] = [];
+        let cum = 0;
+        for (let day = 1; day <= 31; day++) {
+          if (day <= daysInMonth) {
+            cum += (counts[key]?.[day] || 0);
+            data.push(cum);
+          } else {
+            data.push(null);
+          }
+        }
+        const countAtCurrentDay = data[Math.min(currentDay, daysInMonth) - 1] ?? 0;
+        pastMonths.push({
+          key,
+          label,
+          offset,
+          total: cum,
+          countAtCurrentDay,
+          daysInMonth,
+          data,
+        });
+      }
+
+      const labels = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
+
+      return res.json({
+        labels,
+        currentMonth: currentMonthInfo,
+        months: pastMonths,
+      });
+    }
     if (type === 'modality') {
       // Modality trends: x-axis modality, y-axis count, filtered by date
       const modalities = ['USG', 'CT', 'OT', 'XF', 'DSA'];
@@ -195,34 +330,94 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
       return res.json({ labels: sorted.map(([k]) => k), data: sorted.map(([, v]) => v) });
     }
-    if (type === 'yearly') {
-      // Yearly trends: x-axis year, y-axis count, filtered by modality
-      let where: any = {};
+    if (type === 'yearly' || type === 'yearly-cumulative') {
+      // Yearly cumulative trends: month-by-month cumulative case counts across years
+      const now = new Date();
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth(); // 0..11
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      // Find earliest recorded year
+      const first = await prisma.procedureLog.findFirst({
+        orderBy: { procedureDate: 'asc' },
+        select: { procedureDate: true },
+      });
+
+      const earliestYear = first ? new Date(first.procedureDate).getUTCFullYear() : currentYear - 1;
+      // Start year is at least 1 year prior to currentYear, or earliest recorded year
+      const startYear = Math.min(earliestYear, currentYear - 1);
+
+      const where: any = {
+        procedureDate: {
+          gte: new Date(Date.UTC(startYear, 0, 1, 0, 0, 0, 0)),
+          lte: new Date(Date.UTC(currentYear, 11, 31, 23, 59, 59, 999)),
+        },
+      };
       if (modality && modality !== 'All') {
         where.modality = modality;
       }
-      // Find first and last year
-      const first = await prisma.procedureLog.findFirst({ orderBy: { procedureDate: 'asc' }, select: { procedureDate: true } });
-      const last = await prisma.procedureLog.findFirst({ orderBy: { procedureDate: 'desc' }, select: { procedureDate: true } });
-      if (!first || !last) return res.json({ labels: [], data: [] });
-      const startYear = first.procedureDate.getFullYear();
-      const endYear = last.procedureDate.getFullYear();
-      const data = [];
-      for (let y = startYear; y <= endYear; y++) {
-        const yearStart = startOfYear(new Date(y, 0, 1));
-        const yearEnd = endOfYear(new Date(y, 0, 1));
-        const count = await prisma.procedureLog.count({
-          where: {
-            ...where,
-            procedureDate: {
-              gte: yearStart,
-              lte: yearEnd
-            }
-          }
-        });
-        data.push({ label: y.toString(), count });
+
+      const logs = await prisma.procedureLog.findMany({
+        where,
+        select: { procedureDate: true },
+      });
+
+      // Group counts by year and month (0..11)
+      const counts: Record<number, Record<number, number>> = {};
+      for (const log of logs) {
+        const d = new Date(log.procedureDate);
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        if (!counts[y]) counts[y] = {};
+        counts[y][m] = (counts[y][m] || 0) + 1;
       }
-      return res.json({ labels: data.map(d => d.label), data: data.map(d => d.count) });
+
+      // Build current year cumulative data
+      const currentData: (number | null)[] = [];
+      let currentCum = 0;
+      for (let m = 0; m < 12; m++) {
+        if (m <= currentMonth) {
+          currentCum += (counts[currentYear]?.[m] || 0);
+          currentData.push(currentCum);
+        } else {
+          currentData.push(null);
+        }
+      }
+
+      const currentYearInfo = {
+        year: currentYear,
+        label: currentYear.toString(),
+        total: currentCum,
+        currentMonth,
+        currentMonthName: monthNames[currentMonth],
+        data: currentData,
+      };
+
+      // Build past years cumulative data (from currentYear - 1 down to startYear)
+      const pastYears = [];
+      for (let y = currentYear - 1; y >= startYear; y--) {
+        const data: (number | null)[] = [];
+        let cum = 0;
+        for (let m = 0; m < 12; m++) {
+          cum += (counts[y]?.[m] || 0);
+          data.push(cum);
+        }
+        const countAtCurrentMonth = data[currentMonth] ?? 0;
+        pastYears.push({
+          year: y,
+          label: y.toString(),
+          total: cum,
+          countAtCurrentMonth,
+          data,
+        });
+      }
+
+      return res.json({
+        labels: monthNames,
+        currentYear: currentYearInfo,
+        years: pastYears,
+      });
     }
     return res.status(400).json({ message: 'Invalid type' });
   } catch (e) {

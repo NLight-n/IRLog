@@ -30,6 +30,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.irlog.widget.data.storage.SecureTokenStorage
 import com.irlog.widget.ui.MainActivity
+import com.irlog.widget.ui.WidgetAuthRedirectActivity
 import com.irlog.widget.ui.theme.IRLogColors
 import com.irlog.widget.widget.components.EmptyWorklistState
 import com.irlog.widget.widget.components.WidgetHeader
@@ -46,11 +47,13 @@ class IRLogWidget : GlanceAppWidget() {
         val cachedResponse = storage.getCachedWorklist()
         val serverUrl = storage.serverUrl
         val lastSync = storage.lastSyncTime
-        val isDark = storage.isDarkMode()
 
         provideContent {
+            // Re-read storage state inside provideContent for maximum reactivity
+            val storageInstance = SecureTokenStorage(context)
+            val isDark = storageInstance.isDarkMode()
+            
             WidgetContent(
-                context = context,
                 isAuth = isAuth,
                 cachedResponse = cachedResponse,
                 serverUrl = serverUrl,
@@ -62,7 +65,6 @@ class IRLogWidget : GlanceAppWidget() {
 
     @Composable
     private fun WidgetContent(
-        context: Context,
         isAuth: Boolean,
         cachedResponse: com.irlog.widget.data.model.TodayWorklistResponse?,
         serverUrl: String,
@@ -92,7 +94,6 @@ class IRLogWidget : GlanceAppWidget() {
                     WidgetHeader(
                         totalCases = totalCount,
                         scheduledCases = scheduledCount,
-                        lastSyncTimestamp = lastSync,
                         isDark = isDark
                     )
 
@@ -112,7 +113,6 @@ class IRLogWidget : GlanceAppWidget() {
                                 .defaultWeight()
                         ) {
                             EmptyWorklistState(
-                                context = context,
                                 isAllDone = isAllDone,
                                 serverUrl = serverUrl,
                                 isDark = isDark
@@ -127,7 +127,6 @@ class IRLogWidget : GlanceAppWidget() {
                         ) {
                             items(items) { item ->
                                 WorkItemRow(
-                                    context = context,
                                     item = item,
                                     serverUrl = serverUrl,
                                     isDark = isDark
@@ -168,12 +167,12 @@ class IRLogWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .padding(16.dp)
-                .clickable(actionStartActivity<MainActivity>()),
+                .clickable(actionStartActivity<WidgetAuthRedirectActivity>()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "IRLog Setup Required",
+                text = "Connect IRLog Widget",
                 style = TextStyle(
                     color = ColorProvider(theme.textPrimary),
                     fontSize = 14.sp,
@@ -185,7 +184,7 @@ class IRLogWidget : GlanceAppWidget() {
             Spacer(modifier = GlanceModifier.height(4.dp))
 
             Text(
-                text = "Tap here to sign in with your Passkey and connect to today's worklist.",
+                text = "Tap to connect using your active login or Passkey.",
                 style = TextStyle(
                     color = ColorProvider(theme.textSecondary),
                     fontSize = 11.sp,
@@ -202,7 +201,7 @@ class IRLogWidget : GlanceAppWidget() {
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = "Sign In",
+                    text = "Connect Widget",
                     style = TextStyle(
                         color = ColorProvider(IRLogColors.Light.background),
                         fontSize = 12.sp,

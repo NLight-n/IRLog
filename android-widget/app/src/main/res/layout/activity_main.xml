@@ -3,69 +3,70 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_light"
+    android:background="@color/irlog_dark_bg"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="20dp">
 
-        <!-- App Logo & Title -->
+        <!-- App Logo & Title Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="vertical"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="24dp">
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="20dp">
 
             <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:src="@drawable/ic_irlog_logo"
                 android:contentDescription="@string/app_name" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="10dp"
                 android:text="IRLog Companion"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="22sp"
+                android:textColor="@color/irlog_dark_text"
+                android:textSize="20sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Today's Worklist Home Screen Widget"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="14sp" />
+                android:layout_marginTop="3dp"
+                android:text="Widget &amp; Sync Configuration"
+                android:textColor="@color/irlog_dark_text_secondary"
+                android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Setup Card -->
+        <!-- Setup & Server URL Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/widget_card_border"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/irlog_dark_card"
+            app:strokeColor="@color/irlog_dark_border"
             app:strokeWidth="1dp"
-            android:layout_marginBottom="20dp">
+            android:layout_marginBottom="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/label_server_url"
-                    android:textColor="@color/widget_text_primary"
+                    android:textColor="@color/irlog_dark_text"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -75,11 +76,13 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:layout_marginBottom="16dp"
-                    app:boxCornerRadiusBottomEnd="10dp"
-                    app:boxCornerRadiusBottomStart="10dp"
-                    app:boxCornerRadiusTopEnd="10dp"
-                    app:boxCornerRadiusTopStart="10dp">
+                    android:layout_marginBottom="14dp"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/primary"
+                    app:hintTextColor="@color/irlog_dark_text_secondary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etServerUrl"
@@ -87,20 +90,127 @@
                         android:layout_height="wrap_content"
                         android:hint="@string/hint_server_url"
                         android:inputType="textUri"
-                        android:textSize="14sp" />
+                        android:textColor="@color/irlog_dark_text"
+                        android:textSize="13sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- Passkey Auth Button -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnPasskeyAuth"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
+                    android:layout_height="48dp"
                     android:text="@string/btn_passkey_auth"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textStyle="bold"
-                    app:cornerRadius="10dp"
+                    android:backgroundTint="@color/primary"
+                    app:cornerRadius="8dp"
                     app:icon="@drawable/ic_refresh"
                     app:iconGravity="textStart" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Work Hours & Sync Schedule Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/irlog_dark_card"
+            app:strokeColor="@color/irlog_dark_border"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Work Hours &amp; Sync Schedule"
+                    android:textColor="@color/irlog_dark_text"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Syncs every 15 min during work hours, and 60 min after hours to save battery."
+                    android:textColor="@color/irlog_dark_text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="14dp">
+
+                    <!-- Start Time -->
+                    <LinearLayout
+                        android:id="@+id/layoutStartTime"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_settings_tile_dark"
+                        android:padding="12dp"
+                        android:layout_marginEnd="6dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Start Time (tap)"
+                            android:textColor="@color/irlog_dark_text_secondary"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/tvWorkStartTime"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="08:00 AM"
+                            android:textColor="#60A5FA"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- End Time -->
+                    <LinearLayout
+                        android:id="@+id/layoutEndTime"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_settings_tile_dark"
+                        android:padding="12dp"
+                        android:layout_marginStart="6dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="End Time (tap)"
+                            android:textColor="@color/irlog_dark_text_secondary"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/tvWorkEndTime"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="08:00 PM"
+                            android:textColor="#60A5FA"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -109,23 +219,24 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/widget_card_border"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/irlog_dark_card"
+            app:strokeColor="@color/irlog_dark_border"
             app:strokeWidth="1dp"
-            android:layout_marginBottom="20dp">
+            android:layout_marginBottom="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Widget Theme / Appearance"
-                    android:textColor="@color/widget_text_primary"
+                    android:text="Widget Appearance"
+                    android:textColor="@color/irlog_dark_text"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -139,7 +250,18 @@
                         android:id="@+id/rbThemeUserProfile"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Follow User Profile (Saved in IRLog)"
+                        android:text="Follow IRLog User Profile"
+                        android:textColor="@color/irlog_dark_text"
+                        android:buttonTint="@color/primary"
+                        android:textSize="13sp" />
+
+                    <RadioButton
+                        android:id="@+id/rbThemeDark"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Dark Mode (Recommended)"
+                        android:textColor="@color/irlog_dark_text"
+                        android:buttonTint="@color/primary"
                         android:textSize="13sp" />
 
                     <RadioButton
@@ -147,13 +269,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Light Mode"
-                        android:textSize="13sp" />
-
-                    <RadioButton
-                        android:id="@+id/rbThemeDark"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Dark Mode"
+                        android:textColor="@color/irlog_dark_text"
+                        android:buttonTint="@color/primary"
                         android:textSize="13sp" />
 
                     <RadioButton
@@ -161,34 +278,37 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Follow Android System"
+                        android:textColor="@color/irlog_dark_text"
+                        android:buttonTint="@color/primary"
                         android:textSize="13sp" />
                 </RadioGroup>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Status & Sync Card -->
+        <!-- Connection Status & Sync Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/widget_card_border"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/irlog_dark_card"
+            app:strokeColor="@color/irlog_dark_border"
             app:strokeWidth="1dp"
-            android:layout_marginBottom="20dp">
+            android:layout_marginBottom="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Connection Status"
-                    android:textColor="@color/widget_text_primary"
+                    android:textColor="@color/irlog_dark_text"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -196,48 +316,62 @@
                     android:id="@+id/tvStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:text="@string/status_disconnected"
-                    android:textColor="@color/widget_text_secondary"
+                    android:textColor="@color/irlog_dark_text_secondary"
                     android:textSize="14sp" />
 
                 <TextView
                     android:id="@+id/tvLastSync"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="3dp"
                     android:text="Last synced: Never"
-                    android:textColor="@color/widget_text_muted"
+                    android:textColor="@color/irlog_dark_text_muted"
                     android:textSize="12sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginTop="16dp">
+                    android:layout_marginTop="14dp">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnTestSync"
-                        style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:layout_weight="1"
                         android:text="@string/btn_test_sync"
                         android:textSize="13sp"
+                        android:textColor="@color/irlog_dark_text"
+                        android:backgroundTint="@color/irlog_dark_border"
                         android:layout_marginEnd="8dp"
-                        app:cornerRadius="10dp" />
+                        app:cornerRadius="8dp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnDisconnect"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="wrap_content"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:text="@string/btn_disconnect"
                         android:textColor="@color/status_notdone"
                         android:textSize="13sp"
                         app:strokeColor="@color/status_notdone"
-                        app:cornerRadius="10dp" />
+                        app:cornerRadius="8dp" />
                 </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnOpenApp"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="10dp"
+                    android:text="Open Full IRLog App"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/primary"
+                    app:cornerRadius="8dp"
+                    app:icon="@drawable/ic_irlog_logo"
+                    app:iconGravity="textStart" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -246,10 +380,11 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="16dp"
+            app:cardCornerRadius="14dp"
             app:cardElevation="0dp"
-            app:cardBackgroundColor="#F1F5F9"
-            app:strokeWidth="0dp">
+            app:cardBackgroundColor="@color/irlog_dark_card_subtle"
+            app:strokeColor="@color/irlog_dark_border"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -260,8 +395,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="How to add the widget:"
-                    android:textColor="@color/widget_text_primary"
+                    android:text="How to add widgets to Home Screen:"
+                    android:textColor="@color/irlog_dark_text"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
@@ -269,8 +404,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="1. Long-press an empty spot on your Android Home Screen.\n2. Tap 'Widgets' and scroll to find 'IRLog Companion'.\n3. Drag 'Today\'s Worklist' to your home screen."
-                    android:textColor="@color/widget_text_secondary"
+                    android:text="1. Long-press an empty space on your Android Home Screen.\n2. Tap 'Widgets' and scroll to find 'IRLog'.\n3. Choose Quick Glance (2×1), Summary (2×2), or Today's Worklist (4×3)."
+                    android:textColor="@color/irlog_dark_text_secondary"
                     android:textSize="12sp"
                     android:lineSpacingExtra="3dp" />
 

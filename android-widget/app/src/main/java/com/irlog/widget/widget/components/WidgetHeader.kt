@@ -3,6 +3,7 @@ package com.irlog.widget.widget.components
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
@@ -37,7 +38,6 @@ import java.util.Locale
 fun WidgetHeader(
     totalCases: Int,
     scheduledCases: Int,
-    lastSyncTimestamp: Long,
     isDark: Boolean = false
 ) {
     val theme = IRLogColors.getThemeColors(isDark)
@@ -135,7 +135,10 @@ fun WidgetHeader(
             Image(
                 provider = ImageProvider(if (isDark) R.drawable.ic_sun else R.drawable.ic_moon),
                 contentDescription = "Toggle Theme",
-                modifier = GlanceModifier.size(15.dp)
+                modifier = GlanceModifier.size(16.dp),
+                colorFilter = ColorFilter.tint(
+                    ColorProvider(if (isDark) IRLogColors.Primary else theme.textPrimary)
+                )
             )
         }
 
@@ -153,7 +156,8 @@ fun WidgetHeader(
             Image(
                 provider = ImageProvider(R.drawable.ic_refresh),
                 contentDescription = "Refresh",
-                modifier = GlanceModifier.size(15.dp)
+                modifier = GlanceModifier.size(16.dp),
+                colorFilter = ColorFilter.tint(ColorProvider(theme.textPrimary))
             )
         }
     }

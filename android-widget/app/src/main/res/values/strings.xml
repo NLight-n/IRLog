@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IRLog Companion</string>
-    <string name="widget_name">Today\'s Worklist</string>
+    <string name="app_name">IRLog</string>
+    <string name="widget_small_name">Quick Glance</string>
+    <string name="widget_small_description">Compact view of today\'s pending and done counts</string>
+    <string name="widget_medium_name">Summary</string>
+    <string name="widget_medium_description">Today\'s counts with modality breakdown</string>
+    <string name="widget_large_name">Today\'s Worklist</string>
     <string name="widget_description">Shows today\'s scheduled Interventional Radiology cases</string>
     
+    <!-- Legacy keys kept for compatibility -->
+    <string name="widget_name">Today\'s Worklist</string>
+
+    <!-- Analytics Widgets (4x2) -->
+    <string name="widget_monthly_trends_name">Monthly Trends (Cases &amp; Cost)</string>
+    <string name="widget_monthly_trends_description">4x2 dual-axis graph of procedures and costs for the last 6 months</string>
+    <string name="widget_monthly_cumulative_name">Cumulative Monthly Worm</string>
+    <string name="widget_monthly_cumulative_description">4x2 day-by-day worm graph comparing current month and previous 2 months</string>
+    <string name="widget_yearly_cumulative_name">Cumulative Yearly Worm</string>
+    <string name="widget_yearly_cumulative_description">4x2 month-by-month worm graph comparing current year and previous 2 years</string>
+
     <!-- Setup Screen -->
     <string name="title_setup">IRLog Widget Setup</string>
     <string name="subtitle_setup">Configure connection to your IRLog system to display today\'s worklist on your home screen.</string>
@@ -23,4 +38,8 @@
     <string name="widget_all_done">All cases completed today</string>
     <string name="widget_cases_count">%1$d Cases</string>
     <string name="widget_refresh">Refresh</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_settings_short">Settings</string>
+    <string name="shortcut_settings_long">Widget &amp; Sync Settings</string>
 </resources>

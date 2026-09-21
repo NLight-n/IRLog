@@ -32,7 +32,9 @@ class AuthCallbackActivity : AppCompatActivity() {
                 val apiService = IRLogApiService(storage)
                 lifecycleScope.launch {
                     apiService.fetchTodayWorklist()
-                    IRLogWidget().updateAll(applicationContext)
+                    com.irlog.widget.widget.IRLogWidget().updateAll(applicationContext)
+                    com.irlog.widget.widget.IRLogSmallWidget().updateAll(applicationContext)
+                    com.irlog.widget.widget.IRLogMediumWidget().updateAll(applicationContext)
                 }
 
                 Toast.makeText(this, "Passkey authentication successful! Widget connected.", Toast.LENGTH_LONG).show()
@@ -41,11 +43,7 @@ class AuthCallbackActivity : AppCompatActivity() {
             }
         }
 
-        // Return to MainActivity
-        val mainIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        startActivity(mainIntent)
+        // Cleanly finish callback and return directly to caller (Home screen or Settings)
         finish()
     }
 }

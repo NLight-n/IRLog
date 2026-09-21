@@ -1,9 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Base Theme: Sleek Dark Mode matching IRLog Web App -->
     <style name="Theme.IRLogWidget" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorSecondary">@color/accent</item>
-        <item name="android:statusBarColor">@color/primary</item>
-        <item name="android:windowBackground">@color/bg_light</item>
+        <item name="android:statusBarColor">@color/irlog_dark_bg</item>
+        <item name="android:navigationBarColor">@color/irlog_dark_bg</item>
+        <item name="android:windowBackground">@color/irlog_dark_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
+
+    <!-- Splash Theme with Centered Logo & Dark Background -->
+    <style name="Theme.IRLog.Splash" parent="Theme.IRLogWidget">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:statusBarColor">@color/irlog_dark_bg</item>
+        <item name="android:navigationBarColor">@color/irlog_dark_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

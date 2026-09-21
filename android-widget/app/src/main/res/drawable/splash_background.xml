@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solid dark background matching IRLog dark theme -->
+    <item android:drawable="@color/irlog_dark_bg" />
+
+    <!-- Centered IRLog Logo -->
+    <item
+        android:width="96dp"
+        android:height="96dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_irlog_logo" />
+</layer-list>

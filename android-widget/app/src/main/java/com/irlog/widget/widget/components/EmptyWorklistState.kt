@@ -1,14 +1,15 @@
 package com.irlog.widget.widget.components
 
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
+import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -25,12 +26,11 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.irlog.widget.R
+import com.irlog.widget.ui.PwaLauncherActivity
 import com.irlog.widget.ui.theme.IRLogColors
-import com.irlog.widget.util.PwaIntentHelper
 
 @Composable
 fun EmptyWorklistState(
-    context: Context,
     isAllDone: Boolean = false,
     serverUrl: String = "",
     isDark: Boolean = false
@@ -44,7 +44,7 @@ fun EmptyWorklistState(
         "https://irlog.app/worklist"
     }
 
-    val openWorklistIntent = PwaIntentHelper.createPwaOpenIntent(context, pwaUrl)
+    val targetUrlKey = ActionParameters.Key<String>(com.irlog.widget.ui.IRLogTwaLauncherActivity.EXTRA_TARGET_URL)
 
     Column(
         modifier = GlanceModifier
@@ -90,7 +90,11 @@ fun EmptyWorklistState(
                 .background(IRLogColors.Primary)
                 .cornerRadius(8.dp)
                 .padding(horizontal = 14.dp, vertical = 6.dp)
-                .clickable(actionStartActivity(openWorklistIntent)),
+                .clickable(
+                    actionStartActivity<com.irlog.widget.ui.IRLogTwaLauncherActivity>(
+                        actionParametersOf(targetUrlKey to pwaUrl)
+                    )
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(

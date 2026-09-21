@@ -1,12 +1,13 @@
 package com.irlog.widget.widget.components
 
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
+import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -23,12 +24,11 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.irlog.widget.data.model.WorkItemDto
+import com.irlog.widget.ui.PwaLauncherActivity
 import com.irlog.widget.ui.theme.IRLogColors
-import com.irlog.widget.util.PwaIntentHelper
 
 @Composable
 fun WorkItemRow(
-    context: Context,
     item: WorkItemDto,
     serverUrl: String,
     isDark: Boolean = false
@@ -43,13 +43,12 @@ fun WorkItemRow(
         "https://irlog.app/worklist"
     }
 
-    // Launch installed PWA / Chrome WebAPK explicitly
-    val openPwaIntent = PwaIntentHelper.createPwaOpenIntent(context, pwaUrl)
+    val targetUrlKey = ActionParameters.Key<String>(com.irlog.widget.ui.IRLogTwaLauncherActivity.EXTRA_TARGET_URL)
 
-    // Modality colors (matches Analytics daily trends graph)
-    val modalityColors = IRLogColors.getModalityColors(item.modality, isDark)
+    // Modality colors (clean, consistent for all modalities)
+    val modalityColors = IRLogColors.getModalityColors(isDark)
 
-    // Status colors
+    // Status colors & border (replicates worklist page card styling)
     val statusColors = IRLogColors.getStatusColors(item.status, isDark)
 
     // Format Age / Sex
@@ -64,34 +63,43 @@ fun WorkItemRow(
     val hasTime = !item.appointmentTime.isNullOrBlank()
     val hasNotes = !item.notes.isNullOrBlank()
 
+    // Outer Box: Card Border
     Box(
         modifier = GlanceModifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 3.dp)
-            .background(theme.cardBg)
+            .background(statusColors.border)
             .cornerRadius(12.dp)
-            .clickable(actionStartActivity(openPwaIntent))
+            .padding(1.dp) // Reliable 1dp border thickness
+            .clickable(
+                actionStartActivity<com.irlog.widget.ui.IRLogTwaLauncherActivity>(
+                    actionParametersOf(targetUrlKey to pwaUrl)
+                )
+            )
     ) {
-        Column(
+        // Inner Box: Card Background (covers the outer box except for the 1dp padding)
+        Box(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .padding(10.dp)
+                .background(theme.cardBg)
+                .cornerRadius(11.dp) // Radius - BorderThickness
+                .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Column: Modality Chip as Main + Time only if available
+                // Left Column: Modality Tag (Main) + Time (only if available)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = GlanceModifier.width(54.dp)
+                    modifier = GlanceModifier.width(52.dp)
                 ) {
-                    // Modality Chip (Main tag)
+                    // Modality Chip
                     Box(
                         modifier = GlanceModifier
                             .background(modalityColors.badgeBg)
                             .cornerRadius(6.dp)
-                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -104,7 +112,7 @@ fun WorkItemRow(
                         )
                     }
 
-                    // Time field: Show ONLY if available (no '--:--')
+                    // Time: Shown ONLY when available (no --:--)
                     if (hasTime) {
                         Spacer(modifier = GlanceModifier.height(3.dp))
                         Text(
@@ -120,30 +128,17 @@ fun WorkItemRow(
 
                 Spacer(modifier = GlanceModifier.width(10.dp))
 
-                // Center Column: Procedure Name (Prominent) + Patient Info
+                // Center Column: Patient Name first (normal), Procedure Name second (bold), Notes third (aligned)
                 Column(
                     modifier = GlanceModifier.defaultWeight()
                 ) {
-                    // Procedure Name with increased font size
-                    Text(
-                        text = item.procedureName,
-                        style = TextStyle(
-                            color = ColorProvider(theme.textPrimary),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        maxLines = 1
-                    )
-
-                    Spacer(modifier = GlanceModifier.height(2.dp))
-
-                    // Patient Name and Age/Sex
+                    // 1. Patient Name (Normal/Medium) + Age/Sex
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = item.patientName,
                             style = TextStyle(
-                                color = ColorProvider(theme.textSecondary),
-                                fontSize = 12.sp,
+                                color = ColorProvider(theme.textPrimary),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium
                             ),
                             maxLines = 1
@@ -161,6 +156,7 @@ fun WorkItemRow(
                         }
                     }
 
+                    // Patient ID
                     if (item.patientID.isNotBlank()) {
                         Text(
                             text = "ID: ${item.patientID}",
@@ -171,6 +167,32 @@ fun WorkItemRow(
                             maxLines = 1
                         )
                     }
+
+                    Spacer(modifier = GlanceModifier.height(2.dp))
+
+                    // 2. Procedure Name (Bold)
+                    Text(
+                        text = item.procedureName,
+                        style = TextStyle(
+                            color = ColorProvider(theme.textPrimary),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        maxLines = 1
+                    )
+
+                    // 3. Notes Content: Seamlessly aligned in level with text (no different background box)
+                    if (hasNotes) {
+                        Spacer(modifier = GlanceModifier.height(3.dp))
+                        Text(
+                            text = "📝 ${item.notes}",
+                            style = TextStyle(
+                                color = ColorProvider(theme.textSecondary),
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 2
+                        )
+                    }
                 }
 
                 Spacer(modifier = GlanceModifier.width(6.dp))
@@ -179,39 +201,21 @@ fun WorkItemRow(
                 Box(
                     modifier = GlanceModifier
                         .background(statusColors.bg)
-                        .cornerRadius(8.dp)
+                        .cornerRadius(6.dp)
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                    val statusLabel = when (item.status) {
+                        "NotDone" -> "Not Done"
+                        else -> item.status
+                    }
                     Text(
-                        text = item.status,
+                        text = statusLabel,
                         style = TextStyle(
                             color = ColorProvider(statusColors.text),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                    )
-                }
-            }
-
-            // Notes Block: Show if notes content is present
-            if (hasNotes) {
-                Spacer(modifier = GlanceModifier.height(6.dp))
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .background(theme.notesBg)
-                        .cornerRadius(6.dp)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "📝 ${item.notes}",
-                        style = TextStyle(
-                            color = ColorProvider(theme.notesText),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        maxLines = 2
                     )
                 }
             }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -26,14 +26,29 @@ ChartJS.register(
 interface ChartProps {
   type: 'bar' | 'line' | 'horizontalBar';
   labels: string[];
-  data?: number[]; // Make data optional
-  series?: { name: string; data: number[]; color?: string }[]; // Add series prop
+  data?: (number | null)[];
+  series?: {
+    name: string;
+    data: (number | null)[];
+    color?: string;
+    pointStyle?: any;
+    pointRadius?: number;
+    pointHoverRadius?: number;
+    borderWidth?: number;
+    yAxisID?: string;
+    fill?: boolean;
+    tension?: number;
+  }[];
   title?: string;
   color?: string;
+  currency?: string;
   height?: number;
   stacked?: boolean;
   highlightLabel?: string;
   isDarkMode?: boolean;
+  dualAxis?: boolean;
+  legendPosition?: 'top' | 'right' | 'bottom' | 'left';
+  showLegend?: boolean;
 }
 
 const PALETTE = [
@@ -44,58 +59,213 @@ const PALETTE = [
   'rgba(168, 85, 247, 0.7)',
 ];
 
-export default function Chart({ type, labels, data, series, title, color, height = 320, stacked = false, highlightLabel, isDarkMode = false }: ChartProps) {
-  const isDualAxis = !stacked && series && series.length > 1;
+/**
+ * Calculates synchronized min, max, and step sizes for dual-axis charts
+ * so that horizontal grid lines align exactly across both left and right axes.
+ */
+function calculateDualAxisBounds(s0Data: (number | null)[], s1Data: (number | null)[], intervals = 10) {
+  const max0 = Math.max(...(s0Data || []).filter((v): v is number => v != null && !isNaN(v)), 1);
+  const max1 = Math.max(...(s1Data || []).filter((v): v is number => v != null && !isNaN(v)), 1);
+
+  function getNiceStep(val: number, isIntegerOnly: boolean) {
+    const rawStep = val / intervals;
+    if (rawStep <= 0) return 1;
+    const exp = Math.floor(Math.log10(rawStep));
+    const frac = rawStep / Math.pow(10, exp);
+    let niceFrac: number;
+    if (frac <= 1) niceFrac = 1;
+    else if (frac <= 1.5) niceFrac = 1.5;
+    else if (frac <= 2) niceFrac = 2;
+    else if (frac <= 2.5) niceFrac = 2.5;
+    else if (frac <= 3) niceFrac = 3;
+    else if (frac <= 4) niceFrac = 4;
+    else if (frac <= 5) niceFrac = 5;
+    else if (frac <= 6) niceFrac = 6;
+    else if (frac <= 8) niceFrac = 8;
+    else niceFrac = 10;
+
+    let step = niceFrac * Math.pow(10, exp);
+    if (isIntegerOnly) {
+      step = Math.max(1, Math.ceil(step));
+    }
+    return step;
+  }
+
+  const step0 = getNiceStep(max0, true);
+  const niceMax0 = step0 * intervals;
+
+  const step1 = getNiceStep(max1, false);
+  const niceMax1 = step1 * intervals;
+
+  return {
+    axis0: { min: 0, max: niceMax0, stepSize: step0, count: intervals + 1 },
+    axis1: { min: 0, max: niceMax1, stepSize: step1, count: intervals + 1 },
+  };
+}
+
+/**
+ * Creates a canvas rendering a small circular badge with '$' inside.
+ */
+function createDollarIcon(bgColor: string, textColor = '#ffffff', isDarkMode = false, size = 13) {
+  if (typeof document === 'undefined') return undefined;
+  const canvas = document.createElement('canvas');
+  const scale = 2;
+  canvas.width = size * scale;
+  canvas.height = size * scale;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return undefined;
+
+  ctx.scale(scale, scale);
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size / 2 - 1;
+
+  // Outer circle badge
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+  ctx.fillStyle = bgColor;
+  ctx.fill();
+
+  // Crisp ring
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = isDarkMode ? '#18181b' : '#ffffff';
+  ctx.stroke();
+
+  // Small bold dollar symbol in center
+  ctx.fillStyle = textColor;
+  ctx.font = 'bold 8.5px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('$', cx, cy + 0.4);
+
+  return canvas;
+}
+
+export default function Chart({
+  type,
+  labels,
+  data,
+  series,
+  title,
+  color,
+  currency = '$',
+  height = 320,
+  stacked = false,
+  highlightLabel,
+  isDarkMode = false,
+  dualAxis,
+  legendPosition = 'top',
+  showLegend,
+}: ChartProps) {
+  // Determine if this is a dual-axis chart (e.g. Cases vs Cost)
+  const isDualAxis = dualAxis ?? (!stacked && !!series && series.length === 2 && series.some(s => s.name.toLowerCase().includes('cost')));
+
+  // Pre-calculate dual axis bounds if applicable
+  const dualBounds = useMemo(() => {
+    if (isDualAxis && series && series.length >= 2) {
+      return calculateDualAxisBounds(series[0].data, series[1].data, 10);
+    }
+    return null;
+  }, [isDualAxis, series]);
+
+  // Create custom dollar point style icon for the Cost dataset (compact size)
+  const dollarIcon = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const costColor = series && series[1]?.color ? series[1].color : PALETTE[1].replace('0.7', '1');
+    return createDollarIcon(costColor, '#ffffff', isDarkMode, 13);
+  }, [series, isDarkMode]);
 
   const datasets = series
-    ? series.map((s, i) => ({
-      label: s.name,
-      data: s.data,
-      backgroundColor: s.color || PALETTE[i % PALETTE.length],
-      borderColor: s.color || PALETTE[i % PALETTE.length].replace('0.7', '1'),
-      borderWidth: stacked ? 1 : 2,
-      fill: type === 'line', // Only fill for line charts
-      tension: 0.3,
-      spanGaps: false,
-      yAxisID: stacked ? 'y' : (i === 0 ? 'y' : 'y1'),
-    }))
+    ? series.map((s, i) => {
+        const isCostSeries = isDualAxis && (i === 1 || s.name.toLowerCase().includes('cost'));
+        const borderColor = s.color || PALETTE[i % PALETTE.length].replace('0.7', '1');
+        const backgroundColor = s.color || PALETTE[i % PALETTE.length];
+
+        return {
+          label: s.name,
+          data: s.data,
+          backgroundColor,
+          borderColor,
+          borderWidth: s.borderWidth ?? (stacked ? 1 : 2),
+          fill: s.fill ?? (type === 'line' && !isDualAxis),
+          tension: s.tension ?? 0.3,
+          spanGaps: false,
+          yAxisID: isDualAxis ? (i === 0 ? 'y' : 'y1') : 'y',
+          // Use dollar icon for cost line, circle for others
+          pointStyle: s.pointStyle ?? (isCostSeries ? dollarIcon : 'circle'),
+          pointRadius: s.pointRadius ?? (isCostSeries ? 4.5 : (type === 'line' ? 4 : undefined)),
+          pointHoverRadius: s.pointHoverRadius ?? (isCostSeries ? 6.5 : (type === 'line' ? 6 : undefined)),
+        };
+      })
     : [
-      {
-        label: title,
-        data: data || [],
-        backgroundColor: color || 'rgba(59, 130, 246, 0.7)',
-        borderColor: color || 'rgba(59, 130, 246, 1)',
-        borderWidth: 2,
-        fill: type === 'line',
-        tension: 0.3,
-        yAxisID: 'y',
-      },
-    ];
+        {
+          label: title,
+          data: data || [],
+          backgroundColor: color || 'rgba(59, 130, 246, 0.7)',
+          borderColor: color || 'rgba(59, 130, 246, 1)',
+          borderWidth: 2,
+          fill: type === 'line',
+          tension: 0.3,
+          yAxisID: 'y',
+          pointRadius: type === 'line' ? 4 : undefined,
+          pointHoverRadius: type === 'line' ? 6 : undefined,
+        },
+      ];
 
   const chartData = {
     labels,
     datasets,
   };
 
+  const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#e5e7eb';
+  const textColor = isDarkMode ? '#a1a1aa' : '#52525b';
+
   const options: any = {
     responsive: true,
     plugins: {
-      legend: { display: isDualAxis || stacked },
-      title: { display: !!title, text: title, font: { size: 18 } },
-      tooltip: { mode: 'index', intersect: false },
+      legend: {
+        display: showLegend ?? (isDualAxis || stacked || (series && series.length > 1)),
+        position: legendPosition,
+        labels: {
+          usePointStyle: true,
+          boxWidth: 10,
+          boxHeight: 10,
+          color: textColor,
+          font: { size: 12 },
+        },
+      },
+      title: { display: !!title, text: title, font: { size: 18 }, color: isDarkMode ? '#f4f4f5' : '#18181b' },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        callbacks: {
+          label: (ctx: any) => {
+            const label = ctx.dataset.label || '';
+            const val = ctx.parsed.y;
+            if (val === null || val === undefined) return ` ${label}: -`;
+            const isCost = isDualAxis && (ctx.datasetIndex === 1 || ctx.dataset.yAxisID === 'y1' || label.toLowerCase().includes('cost'));
+            if (isCost) {
+              return ` ${label}: ${currency}${Number(val).toLocaleString()}`;
+            }
+            return ` ${label}: ${Number(val).toLocaleString()}`;
+          },
+        },
+      },
     },
     indexAxis: type === 'horizontalBar' ? 'y' : 'x',
     scales: {
       x: {
         stacked: stacked,
-        grid: { color: '#e5e7eb' },
+        grid: { color: gridColor },
         ticks: {
           color: (ctx: any) => {
             const label = labels[ctx.index];
             if (highlightLabel && label === highlightLabel) {
               return isDarkMode ? '#ffffff' : '#111827';
             }
-            return '#52525b';
+            return textColor;
           },
           font: (ctx: any) => {
             const label = labels[ctx.index];
@@ -108,8 +278,20 @@ export default function Chart({ type, labels, data, series, title, color, height
       },
       y: {
         stacked: stacked,
-        grid: { color: '#e5e7eb' },
-        ticks: { color: '#52525b', stepSize: stacked ? 1 : undefined },
+        grid: { color: gridColor },
+        min: isDualAxis && dualBounds ? dualBounds.axis0.min : (type !== 'horizontalBar' ? 0 : undefined),
+        max: isDualAxis && dualBounds ? dualBounds.axis0.max : undefined,
+        ticks: {
+          color: textColor,
+          stepSize: isDualAxis && dualBounds ? dualBounds.axis0.stepSize : (stacked ? 1 : undefined),
+          count: isDualAxis && dualBounds ? dualBounds.axis0.count : undefined,
+          callback: (val: any) => {
+            if (typeof val === 'number') {
+              return val.toLocaleString();
+            }
+            return val;
+          },
+        },
         position: 'left',
       },
     },
@@ -122,16 +304,27 @@ export default function Chart({ type, labels, data, series, title, color, height
     options.scales.y.beginAtZero = true;
   }
 
-  if (isDualAxis) {
+  if (isDualAxis && dualBounds) {
     options.scales.y1 = {
       type: 'linear',
       display: true,
       position: 'right',
+      min: dualBounds.axis1.min,
+      max: dualBounds.axis1.max,
       grid: {
-        drawOnChartArea: false,
+        drawOnChartArea: false, // Prevents duplicate lines since 'y' matches the exact same tick heights!
       },
-      ticks: { color: PALETTE[1].replace('0.7', '1') },
-      beginAtZero: true,
+      ticks: {
+        color: PALETTE[1].replace('0.7', '1'),
+        stepSize: dualBounds.axis1.stepSize,
+        count: dualBounds.axis1.count,
+        callback: (val: any) => {
+          if (typeof val === 'number') {
+            return `${currency}${val.toLocaleString()}`;
+          }
+          return val;
+        },
+      },
     };
   }
 

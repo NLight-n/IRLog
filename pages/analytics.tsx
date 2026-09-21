@@ -5,6 +5,8 @@ import { useTheme } from '../lib/theme/ThemeContext';
 import { useAppSettings } from './_app';
 import Chart from '../components/common/Chart';
 import { useRouter } from 'next/router';
+import WormChartCard from '../components/analytics/WormChartCard';
+import YearlyWormChartCard from '../components/analytics/YearlyWormChartCard';
 
 const MODALITIES = ['All', 'USG', 'CT', 'OT', 'XF', 'DSA'];
 
@@ -37,6 +39,17 @@ export default function AnalyticsPage() {
   const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
   const { appHeading, appSubheading, appLogo } = useAppSettings();
+
+  // App currency setting
+  const [currency, setCurrency] = useState('$');
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.currency) setCurrency(data.currency);
+      })
+      .catch(() => {});
+  }, []);
 
   // Monthly Trends filter
   const [monthlyModality, setMonthlyModality] = useState('All');
@@ -78,8 +91,6 @@ export default function AnalyticsPage() {
     }
   }, []);
 
-  // Yearly Trends filter
-  const [yearlyModality, setYearlyModality] = useState('All');
   // By Modality filter
   const [modalityDateFrom, setModalityDateFrom] = useState('');
   const [modalityDateTo, setModalityDateTo] = useState('');
@@ -98,7 +109,6 @@ export default function AnalyticsPage() {
   const daily = useAnalyticsData('daily', { modality: dailyModality, monthOffset: dailyOffset.toString() });
   const modalityTrends = useAnalyticsData('modality', { dateFrom: modalityDateFrom, dateTo: modalityDateTo });
   const physician = useAnalyticsData('physician', { dateFrom: physicianDateFrom, dateTo: physicianDateTo });
-  const yearly = useAnalyticsData('yearly', { modality: yearlyModality });
 
   const router = useRouter();
   const navbarRef = useRef<HTMLDivElement>(null);
@@ -226,7 +236,7 @@ export default function AnalyticsPage() {
 
             {/* Chart */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              {monthly.loading ? <div>Loading...</div> : monthly.error ? <div style={{ color: 'red' }}>{monthly.error}</div> : monthly.data && <Chart type="line" labels={monthly.data.labels} series={monthly.data.series} title="Monthly Trends" height={380} highlightLabel={currentMonthLabel} isDarkMode={theme === 'dark'} />}
+              {monthly.loading ? <div>Loading...</div> : monthly.error ? <div style={{ color: 'red' }}>{monthly.error}</div> : monthly.data && <Chart type="line" labels={monthly.data.labels} series={monthly.data.series} title="Monthly Trends" height={380} highlightLabel={currentMonthLabel} isDarkMode={theme === 'dark'} currency={currency} />}
             </div>
 
             {/* Right Arrow - Desktop Side Nav */}
@@ -420,6 +430,8 @@ export default function AnalyticsPage() {
             </div>
           )}
         </div>
+        {/* Cumulative Monthly Comparison (Cricket Worm) Card */}
+        <WormChartCard isDarkMode={theme === 'dark'} />
         {/* By Modality and By Referring Physician Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           <div className="card p-6">
@@ -455,19 +467,8 @@ export default function AnalyticsPage() {
             {physician.loading ? <div>Loading...</div> : physician.error ? <div style={{ color: 'red' }}>{physician.error}</div> : physician.data && <Chart type="horizontalBar" labels={physician.data.labels} series={physician.data.series} title="By Referring Physician" />}
           </div>
         </div>
-        {/* Yearly Trends Card */}
-        <div className="card mb-8 p-6">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 className="mb-0 text-lg font-medium">Yearly Trends</h4>
-            <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="yearly-modality">Modality</label>
-              <select id="yearly-modality" className="form-input" value={yearlyModality} onChange={e => setYearlyModality(e.target.value)}>
-                {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          </div>
-          {yearly.loading ? <div>Loading...</div> : yearly.error ? <div style={{ color: 'red' }}>{yearly.error}</div> : yearly.data && <Chart type="bar" labels={yearly.data.labels} series={yearly.data.series} title="Yearly Trends" />}
-        </div>
+        {/* Yearly Cumulative Trends (Worm Graph) Card */}
+        <YearlyWormChartCard isDarkMode={theme === 'dark'} />
       </div>
     </>
   );
