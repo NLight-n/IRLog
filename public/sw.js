@@ -19,7 +19,7 @@ function getBasePath() {
 }
 
 // Helper: Network fetch with timeout to prevent hanging on offline servers
-function fetchWithTimeout(request, timeoutMs = 2500) {
+function fetchWithTimeout(request, timeoutMs = 6000) {
   return new Promise((resolve, reject) => {
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -116,17 +116,17 @@ self.addEventListener('fetch', (event) => {
   // 2. NextAuth Session Route: Network-First with Fallback to Cached Session
   if (url.pathname.includes('/api/auth/session') && req.method === 'GET') {
     event.respondWith(
-      fetchWithTimeout(req, 2000)
+      fetchWithTimeout(req, 6000)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
-            caches.open(AUTH_CACHE).then((cache) => cache.put(req, clone));
+            caches.open(AUTH_CACHE).then((cache) => cache.put(req.url, clone));
           }
           return networkResponse;
         })
         .catch(async () => {
           const authCache = await caches.open(AUTH_CACHE);
-          const cached = await authCache.match(req);
+          const cached = await authCache.match(req.url);
           if (cached) {
             // Return cached session with offline indicator header
             const cachedBody = await cached.clone().text();
@@ -138,10 +138,9 @@ self.addEventListener('fetch', (event) => {
               },
             });
           }
-          // If no session is cached at all, return empty JSON
-          return new Response('{}', {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ error: 'Session unavailable offline' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json', 'X-IRLog-Offline': 'true' },
           });
         })
     );
@@ -156,17 +155,17 @@ self.addEventListener('fetch', (event) => {
   // 4. Read APIs (Worklist, Procedures, Settings, etc.): Fast Network-First with Cache Fallback
   if (isCacheableApi(url.pathname)) {
     event.respondWith(
-      fetchWithTimeout(req, 2500)
+      fetchWithTimeout(req, 6000)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
-            caches.open(DATA_CACHE).then((cache) => cache.put(req, clone));
+            caches.open(DATA_CACHE).then((cache) => cache.put(req.url, clone));
           }
           return networkResponse;
         })
         .catch(async () => {
           const dataCache = await caches.open(DATA_CACHE);
-          const cached = await dataCache.match(req);
+          const cached = await dataCache.match(req.url);
           if (cached) {
             const cachedBody = await cached.clone().text();
             return new Response(cachedBody, {
@@ -200,7 +199,7 @@ self.addEventListener('fetch', (event) => {
 
         // If client is already offline, skip network delay and serve cache directly
         if (!navigator.onLine) {
-          const cachedPage = await appCache.match(req);
+          const cachedPage = await appCache.match(req.url);
           if (cachedPage) return cachedPage;
 
           // Try fallback to worklist or root
@@ -215,15 +214,14 @@ self.addEventListener('fetch', (event) => {
         }
 
         try {
-          // Race network against 2.5s timeout to prevent white screen on offline servers
-          const networkResponse = await fetchWithTimeout(req, 2500);
+          const networkResponse = await fetchWithTimeout(req, 6000);
           if (networkResponse && networkResponse.status === 200) {
-            appCache.put(req, networkResponse.clone());
+            appCache.put(req.url, networkResponse.clone());
           }
           return networkResponse;
         } catch (err) {
           // Server offline or network timed out — retrieve cached version
-          const cachedPage = await appCache.match(req);
+          const cachedPage = await appCache.match(req.url);
           if (cachedPage) return cachedPage;
 
           // Route fallback

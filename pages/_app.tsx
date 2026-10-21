@@ -97,22 +97,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   const [appHeading, setAppHeading] = useState('Interventional Radiology Register');
   const [appSubheading, setAppSubheading] = useState('');
   const [appLogo, setAppLogo] = useState('');
-  const [cachedSession, setCachedSession] = useState<any>(null);
-
-  // Load cached session for offline start
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !session) {
-      try {
-        const raw = localStorage.getItem('irlog_cached_session');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.user) {
-            setCachedSession(parsed);
-          }
-        }
-      } catch {}
-    }
-  }, [session]);
 
   // Preload settings from cache, then fetch fresh
   const refreshSettings = () => {
@@ -205,7 +189,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, []);
 
   return (
-    <SessionProvider session={session || cachedSession} basePath={`${basePath}/api/auth`}>
+    <SessionProvider session={session} basePath={`${basePath}/api/auth`}>
       <PWAProvider>
         <Head>
           <title>IRLog</title>

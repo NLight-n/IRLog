@@ -47,7 +47,15 @@ function ProcedureLogPage() {
     }
     return [];
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_procedures');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [error, setError] = useState('');
   const [searchText, setSearchText] = useState('');
   const [searchFields, setSearchFields] = useState(['patientID', 'patientName', 'diagnosis']);
@@ -111,7 +119,8 @@ function ProcedureLogPage() {
   useEffect(() => {
     if (status === 'loading') return;
     if (!session) {
-      if (typeof window !== 'undefined' && localStorage.getItem('irlog_cached_session')) {
+      if (typeof window !== 'undefined' && (isEffectiveOffline || localStorage.getItem('irlog_cached_procedures'))) {
+        fetchProcedures();
         return;
       }
       router.replace('/login');

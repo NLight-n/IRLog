@@ -137,7 +137,15 @@ export default function AppointmentPage() {
     }
     return [];
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_worklist');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -459,8 +467,9 @@ export default function AppointmentPage() {
   useEffect(() => {
     if (status === 'loading') return;
     if (!session) {
-      // If offline with a cached session, do not redirect to login
-      if (typeof window !== 'undefined' && localStorage.getItem('irlog_cached_session')) {
+      if (typeof window !== 'undefined' && (isEffectiveOffline || localStorage.getItem('irlog_cached_worklist'))) {
+        loadAppointments();
+        loadHolidays();
         return;
       }
       router.replace('/login');
