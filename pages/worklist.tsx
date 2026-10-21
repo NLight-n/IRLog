@@ -1580,42 +1580,39 @@ export default function AppointmentPage() {
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
                                 <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-gray-900)' }}>{item.patientName}</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: statusBg, color: statusColor }}>
-                                    {statusLabel}
-                                  </span>
-                                  {item.patientType === 'IP' && (
-                                    <span
-                                      style={{
-                                        fontSize: 8.5,
-                                        fontWeight: 700,
-                                        padding: '1px 5px',
-                                        borderRadius: 3,
-                                        whiteSpace: 'nowrap',
-                                        background: theme === 'dark' ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff',
-                                        color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
-                                        border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.35)' : '1px solid #c7d2fe',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 3,
-                                        lineHeight: 1.2,
-                                      }}
-                                    >
-                                      <span>IP</span>
-                                      {item.ward && (
-                                        <span style={{ fontSize: 7.5, fontWeight: 500, opacity: 0.9 }}>
-                                          {item.ward}
-                                        </span>
-                                      )}
-                                    </span>
-                                  )}
-                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: statusBg, color: statusColor, flexShrink: 0 }}>
+                                  {statusLabel}
+                                </span>
                               </div>
 
-                              <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600 }}>ID: {item.patientID}</span>
                                 {(item.patientAge != null || item.patientSex) && (
                                   <span>• {item.patientAge != null ? `${item.patientAge}Y` : ''}{item.patientSex ? `/${item.patientSex}` : ''}</span>
+                                )}
+                                {item.patientType === 'IP' && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 2 }}>
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        padding: '1px 5px',
+                                        borderRadius: 3,
+                                        lineHeight: 1.15,
+                                        background: theme === 'dark' ? 'rgba(99, 102, 241, 0.25)' : '#e0e7ff',
+                                        color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                                        border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.4)' : '1px solid #c7d2fe',
+                                        letterSpacing: '0.02em',
+                                      }}
+                                    >
+                                      IP
+                                    </span>
+                                    {item.ward && (
+                                      <span style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--color-gray-600)' }}>
+                                        {item.ward}
+                                      </span>
+                                    )}
+                                  </span>
                                 )}
                               </div>
 
@@ -1931,75 +1928,72 @@ export default function AppointmentPage() {
                                       }}>
                                         {item.patientName}
                                       </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                                        <span style={{
-                                          fontSize: 9,
-                                          fontWeight: 700,
-                                          padding: '2px 6px',
-                                          borderRadius: 4,
-                                          whiteSpace: 'nowrap',
-                                          background: isDone
-                                            ? '#dcfce7'
-                                            : isNotDone
-                                              ? '#fef3c7'
-                                              : isCancelled
-                                                ? '#fee2e2'
-                                                : '#dbeafe',
-                                          color: isDone
-                                            ? '#15803d'
-                                            : isNotDone
-                                              ? '#92400e'
-                                              : isCancelled
-                                                ? '#b91c1c'
-                                                : '#1e40af',
-                                        }}>
-                                          {item.status === 'NotDone' ? 'Not Done' : item.status}
-                                        </span>
-                                        {item.patientType === 'IP' && (
-                                          <span
-                                            style={{
-                                              fontSize: 8.5,
-                                              fontWeight: 700,
-                                              padding: '1px 5px',
-                                              borderRadius: 3,
-                                              whiteSpace: 'nowrap',
-                                              background: theme === 'dark' ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff',
-                                              color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
-                                              border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.35)' : '1px solid #c7d2fe',
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: 3,
-                                              lineHeight: 1.2,
-                                              maxWidth: 120,
-                                            }}
-                                            title={item.ward ? `Inpatient - ${item.ward}` : 'Inpatient'}
-                                          >
-                                            <span>IP</span>
-                                            {item.ward && (
-                                              <span
-                                                style={{
-                                                  fontSize: 7.5,
-                                                  fontWeight: 500,
-                                                  opacity: 0.9,
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                                  maxWidth: 70,
-                                                }}
-                                              >
-                                                {item.ward}
-                                              </span>
-                                            )}
-                                          </span>
-                                        )}
-                                      </div>
+                                      <span style={{
+                                        fontSize: 9,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0,
+                                        background: isDone
+                                          ? '#dcfce7'
+                                          : isNotDone
+                                            ? '#fef3c7'
+                                            : isCancelled
+                                              ? '#fee2e2'
+                                              : '#dbeafe',
+                                        color: isDone
+                                          ? '#15803d'
+                                          : isNotDone
+                                            ? '#92400e'
+                                            : isCancelled
+                                              ? '#b91c1c'
+                                              : '#1e40af',
+                                      }}>
+                                        {item.status === 'NotDone' ? 'Not Done' : item.status}
+                                      </span>
                                     </div>
 
-                                    {/* Row 2: ID & Age / Sex */}
-                                    <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 2, display: 'flex', gap: 4, alignItems: 'center' }}>
+                                    {/* Row 2: ID & Age / Sex & IP Tag + Ward */}
+                                    <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 2, display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                       <span style={{ fontWeight: 600 }}>ID: {item.patientID}</span>
                                       {(item.patientAge != null || item.patientSex) && (
                                         <span>• {item.patientAge != null ? `${item.patientAge}Y` : ''}{item.patientSex ? `/${item.patientSex}` : ''}</span>
+                                      )}
+                                      {item.patientType === 'IP' && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 2 }}>
+                                          <span
+                                            style={{
+                                              fontSize: 10,
+                                              fontWeight: 700,
+                                              padding: '1px 5px',
+                                              borderRadius: 3,
+                                              lineHeight: 1.15,
+                                              background: theme === 'dark' ? 'rgba(99, 102, 241, 0.25)' : '#e0e7ff',
+                                              color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                                              border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.4)' : '1px solid #c7d2fe',
+                                              letterSpacing: '0.02em',
+                                            }}
+                                          >
+                                            IP
+                                          </span>
+                                          {item.ward && (
+                                            <span
+                                              style={{
+                                                fontSize: 10.5,
+                                                fontWeight: 500,
+                                                color: 'var(--color-gray-600)',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                maxWidth: 110,
+                                              }}
+                                              title={item.ward}
+                                            >
+                                              {item.ward}
+                                            </span>
+                                          )}
+                                        </span>
                                       )}
                                     </div>
 
@@ -2466,8 +2460,33 @@ export default function AppointmentPage() {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 12, color: 'var(--color-gray-500)', marginTop: 2 }}>
-                  ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''} {actionCard.patientType === 'IP' ? `| IP${actionCard.ward ? ` (${actionCard.ward})` : ''}` : actionCard.patientType === 'OP' ? '| OP' : ''}
+                <div style={{ fontSize: 12, color: 'var(--color-gray-500)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''}</span>
+                  {actionCard.patientType === 'IP' && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 2 }}>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        lineHeight: 1.15,
+                        background: theme === 'dark' ? 'rgba(99, 102, 241, 0.25)' : '#e0e7ff',
+                        color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                        border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.4)' : '1px solid #c7d2fe',
+                        letterSpacing: '0.02em',
+                      }}>
+                        IP
+                      </span>
+                      {actionCard.ward && (
+                        <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-gray-600)' }}>
+                          {actionCard.ward}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {actionCard.patientType === 'OP' && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-gray-500)' }}>| OP</span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2513,39 +2532,17 @@ export default function AppointmentPage() {
                   <FiShare2 size={12} />
                   <span style={{ fontWeight: 600 }}>Share</span>
                 </button>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
-                    color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
-                  }}>
-                    {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
-                  </span>
-                  {actionCard.patientType === 'IP' && (
-                    <span style={{
-                      fontSize: 9.5,
-                      fontWeight: 700,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      background: theme === 'dark' ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff',
-                      color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
-                      border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.35)' : '1px solid #c7d2fe',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                    }}>
-                      <span>IP</span>
-                      {actionCard.ward && (
-                        <span style={{ fontSize: 8.5, fontWeight: 500, opacity: 0.9 }}>
-                          ({actionCard.ward})
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  whiteSpace: 'nowrap',
+                  background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
+                  color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
+                }}>
+                  {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
+                </span>
               </div>
             </div>
 
