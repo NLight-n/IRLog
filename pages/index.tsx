@@ -9,6 +9,7 @@ import FilterBar from '../components/FilterBar';
 import UserProfileSidebar from '../components/modals/UserProfileSidebar';
 import { useAppSettings } from './_app';
 import * as XLSX from 'xlsx';
+import { usePWA } from '../lib/pwaContext';
 
 const DATE_FILTERS = [
   { label: 'All', value: 'all' },
@@ -31,7 +32,21 @@ type Physician = {
 function ProcedureLogPage() {
   const { data: session, status } = useSession();
   const { theme, setTheme, accentColor } = useTheme();
-  const [procedures, setProcedures] = useState<any[]>([]);
+  const { isOffline, isServerOffline } = usePWA();
+  const isEffectiveOffline = isOffline || isServerOffline;
+
+  const [procedures, setProcedures] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_procedures');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchText, setSearchText] = useState('');
@@ -96,6 +111,9 @@ function ProcedureLogPage() {
   useEffect(() => {
     if (status === 'loading') return;
     if (!session) {
+      if (typeof window !== 'undefined' && localStorage.getItem('irlog_cached_session')) {
+        return;
+      }
       router.replace('/login');
       return;
     }
@@ -164,14 +182,37 @@ function ProcedureLogPage() {
     fetch('/api/procedures')
       .then(async res => {
         if (res.status === 403 || res.status === 401) {
-          router.replace('/login');
-          return;
+          if (typeof window !== 'undefined' && localStorage.getItem('irlog_cached_session')) {
+            // Retain offline session, do not redirect to login
+          } else {
+            router.replace('/login');
+            return;
+          }
         }
+        if (!res.ok) throw new Error('Failed to load procedures');
         const data = await res.json();
-        setProcedures(data);
+        const procList = Array.isArray(data) ? data : [];
+        setProcedures(procList);
+        try {
+          localStorage.setItem('irlog_cached_procedures', JSON.stringify(procList));
+        } catch {}
         setLoading(false);
       })
-      .catch(() => setError('Failed to load procedures'));
+      .catch(() => {
+        try {
+          const cached = localStorage.getItem('irlog_cached_procedures');
+          if (cached) {
+            const data = JSON.parse(cached);
+            if (Array.isArray(data) && data.length > 0) {
+              setProcedures(data);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {}
+        setError('Failed to load procedures');
+        setLoading(false);
+      });
   };
 
   const fetchFilterOptions = () => {
@@ -378,11 +419,19 @@ function ProcedureLogPage() {
   const clearDoneByFilter = () => setDoneByFilter('');
 
   const handleAdd = () => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Creating entries requires an active server connection.');
+      return;
+    }
     setEditData(null);
     setShowModal(true);
   };
 
   const handleEdit = (row: any) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Editing entries requires an active server connection.');
+      return;
+    }
     setEditData({
       ...row,
       patientStatus: row.status || '',
@@ -395,6 +444,10 @@ function ProcedureLogPage() {
   };
 
   const handleDelete = async (procedureID: number) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Deleting entries requires an active server connection.');
+      return;
+    }
     const res = await fetch(`/api/procedures/${procedureID}`, {
       method: 'DELETE',
     });
@@ -408,6 +461,10 @@ function ProcedureLogPage() {
   };
 
   const handleSave = async (form: any) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Saving entries requires an active server connection.');
+      return;
+    }
     const isEdit = !!editData;
     const url = isEdit ? `/api/procedures/${editData.procedureID}` : '/api/procedures';
     const method = isEdit ? 'PATCH' : 'POST';

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "WorkItem" ADD COLUMN IF NOT EXISTS "patientType" TEXT;
+ALTER TABLE "WorkItem" ADD COLUMN IF NOT EXISTS "ward" TEXT;

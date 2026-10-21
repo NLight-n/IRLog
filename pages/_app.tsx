@@ -10,13 +10,12 @@ import { PWAProvider } from '../lib/pwaContext';
 import OfflineBanner from '../components/common/OfflineBanner';
 import PWAInstallBanner from '../components/common/PWAInstallBanner';
 
-
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 if (typeof window !== 'undefined' && !(window as any).__fetchOverridden) {
   (window as any).__fetchOverridden = true;
   const originalFetch = window.fetch;
-  window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+  window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
     let urlStr = '';
     if (typeof input === 'string') {
       urlStr = input;
@@ -26,29 +25,58 @@ if (typeof window !== 'undefined' && !(window as any).__fetchOverridden) {
       urlStr = (input as any).url;
     }
 
+    let targetInput: RequestInfo | URL = input;
     if (basePath && urlStr.startsWith('/api/')) {
       const rewritten = basePath + urlStr;
       if (typeof input === 'string') {
-        return originalFetch(rewritten, init);
+        targetInput = rewritten;
       } else if (input instanceof URL) {
-        return originalFetch(new URL(rewritten, window.location.origin), init);
+        targetInput = new URL(rewritten, window.location.origin);
       } else {
-        const newReq = new Request(rewritten, input as Request);
-        return originalFetch(newReq, init);
+        targetInput = new Request(rewritten, input as Request);
       }
     } else if (basePath && urlStr.startsWith(window.location.origin + '/api/')) {
       const relativePart = urlStr.substring(window.location.origin.length);
       const rewritten = window.location.origin + basePath + relativePart;
       if (typeof input === 'string') {
-        return originalFetch(rewritten, init);
+        targetInput = rewritten;
       } else if (input instanceof URL) {
-        return originalFetch(new URL(rewritten), init);
+        targetInput = new URL(rewritten);
       } else {
-        const newReq = new Request(rewritten, input as Request);
-        return originalFetch(newReq, init);
+        targetInput = new Request(rewritten, input as Request);
       }
     }
-    return originalFetch(input, init);
+
+    try {
+      const res = await originalFetch(targetInput, init);
+      // Check for Service Worker offline indicator header
+      if (res.headers.get('X-IRLog-Offline') === 'true') {
+        window.dispatchEvent(new CustomEvent('irlog:server-offline'));
+      } else if (res.ok && urlStr.includes('/api/')) {
+        window.dispatchEvent(new CustomEvent('irlog:server-online'));
+        try {
+          localStorage.setItem('irlog_last_synced', Date.now().toString());
+        } catch {}
+      }
+
+      // Cache session for offline fallback
+      if (urlStr.includes('/api/auth/session') && res.ok) {
+        res.clone().json().then(data => {
+          if (data && data.user) {
+            localStorage.setItem('irlog_cached_session', JSON.stringify(data));
+          }
+        }).catch(() => {});
+      } else if (urlStr.includes('/api/auth/signout')) {
+        localStorage.removeItem('irlog_cached_session');
+      }
+
+      return res;
+    } catch (err) {
+      if (urlStr.includes('/api/')) {
+        window.dispatchEvent(new CustomEvent('irlog:server-offline'));
+      }
+      throw err;
+    }
   };
 }
 
@@ -69,23 +97,60 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   const [appHeading, setAppHeading] = useState('Interventional Radiology Register');
   const [appSubheading, setAppSubheading] = useState('');
   const [appLogo, setAppLogo] = useState('');
+  const [cachedSession, setCachedSession] = useState<any>(null);
 
-  // Fetch settings on mount or when needed
+  // Load cached session for offline start
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !session) {
+      try {
+        const raw = localStorage.getItem('irlog_cached_session');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.user) {
+            setCachedSession(parsed);
+          }
+        }
+      } catch {}
+    }
+  }, [session]);
+
+  // Preload settings from cache, then fetch fresh
   const refreshSettings = () => {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
         if (data.appHeading) setAppHeading(data.appHeading);
         if (data.appSubheading !== undefined) setAppSubheading(data.appSubheading);
-        // Use /api/logo endpoint if logo exists, with cache busting
+        try {
+          localStorage.setItem('irlog_cached_settings', JSON.stringify({
+            appHeading: data.appHeading,
+            appSubheading: data.appSubheading,
+            hasLogo: data.hasLogo
+          }));
+        } catch {}
         if (data.hasLogo) {
           setAppLogo(`${basePath}/api/logo?t=${Date.now()}`);
         } else {
           setAppLogo('');
         }
+      })
+      .catch(() => {
+        // Handled by cached settings in localStorage
       });
   };
+
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_settings');
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (data.appHeading) setAppHeading(data.appHeading);
+          if (data.appSubheading !== undefined) setAppSubheading(data.appSubheading);
+          if (data.hasLogo) setAppLogo(`${basePath}/api/logo`);
+        }
+      } catch {}
+    }
     refreshSettings();
   }, []);
 
@@ -96,29 +161,41 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         if (res.ok) {
           const data = await res.json();
           let userCols = Array.isArray(data.columns) ? data.columns : defaultColumns;
-          // Only keep columns that exist in defaultColumns
           userCols = userCols.filter((uc: any) => defaultColumns.some(dc => dc.key === uc.key));
-          // Merge in any missing columns from defaultColumns
           const userColKeys = userCols.map((uc: any) => uc.key);
           const mergedCols = [
             ...userCols,
             ...defaultColumns.filter(dc => !userColKeys.includes(dc.key))
           ];
           setColumns(mergedCols);
+          try {
+            localStorage.setItem('irlog_cached_columns', JSON.stringify(mergedCols));
+          } catch {}
         } else {
-          setColumns(defaultColumns);
+          loadCachedColumns();
         }
       } catch {
-        setColumns(defaultColumns);
+        loadCachedColumns();
       }
     }
+
+    function loadCachedColumns() {
+      try {
+        const cached = localStorage.getItem('irlog_cached_columns');
+        if (cached) {
+          setColumns(JSON.parse(cached));
+          return;
+        }
+      } catch {}
+      setColumns(defaultColumns);
+    }
+
     fetchAndMergeColumns();
   }, []);
 
   // Register PWA Service Worker with explicit scope
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      // Register immediately. Waiting for window.load can miss the event in a PWA.
       const swUrl = `${basePath}/sw.js`;
       const swScope = basePath ? `${basePath}/` : '/';
       navigator.serviceWorker.register(swUrl, { scope: swScope }).catch(err => {
@@ -128,7 +205,7 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
   }, []);
 
   return (
-    <SessionProvider session={session} basePath={`${basePath}/api/auth`}>
+    <SessionProvider session={session || cachedSession} basePath={`${basePath}/api/auth`}>
       <PWAProvider>
         <Head>
           <title>IRLog</title>

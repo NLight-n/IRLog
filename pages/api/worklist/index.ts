@@ -35,6 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         procedureName: data.procedureName,
         modality: data.modality || null,
         appointmentTime: data.appointmentTime || null,
+        patientType: data.patientType || null,
+        ward: data.patientType === 'IP' ? (data.ward || null) : null,
         status: data.status || 'Scheduled',
         notDoneReason: data.notDoneReason || null,
         displayOrder: typeof data.displayOrder === 'number' ? data.displayOrder : 0,

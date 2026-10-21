@@ -108,6 +108,8 @@ model WorkItem {
   procedureName    String
   modality         String?
   appointmentTime  String?
+  patientType      String?   // IP | OP
+  ward             String?
   status           String    @default("Scheduled") // Scheduled | Done | NotDone | Cancelled
   notDoneReason    String?
   displayOrder     Int       @default(0)

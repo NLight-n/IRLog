@@ -55,6 +55,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (typeof body.procedureName === 'string') data.procedureName = body.procedureName;
     if (body.modality !== undefined) data.modality = body.modality || null;
     if (body.appointmentTime !== undefined) data.appointmentTime = body.appointmentTime || null;
+    if (body.patientType !== undefined) {
+      data.patientType = body.patientType || null;
+      if (body.patientType !== 'IP') {
+        data.ward = null;
+      }
+    }
+    if (body.ward !== undefined && (data.patientType === 'IP' || data.patientType === undefined)) {
+      data.ward = body.ward || null;
+    }
     if (typeof body.status === 'string') data.status = body.status;
     if (body.notDoneReason !== undefined) data.notDoneReason = body.notDoneReason || null;
     if (typeof body.displayOrder === 'number') data.displayOrder = body.displayOrder;

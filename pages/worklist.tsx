@@ -10,6 +10,7 @@ import { useTheme } from '../lib/theme/ThemeContext';
 import ProcedureLogModal from '../components/modals/ProcedureLogModal';
 import { useAppointmentsCount } from '../lib/appointmentsCountContext';
 import BottomSheetModal from '../components/common/BottomSheetModal';
+import { usePWA } from '../lib/pwaContext';
 
 type AppointmentItem = {
   id: number;
@@ -20,6 +21,8 @@ type AppointmentItem = {
   procedureName: string;
   modality?: string | null;
   appointmentTime?: string | null;
+  patientType?: 'IP' | 'OP' | null;
+  ward?: string | null;
   status: 'Scheduled' | 'Done' | 'NotDone' | 'Cancelled';
   notDoneReason?: string | null;
   displayOrder: number;
@@ -90,6 +93,10 @@ function formatAppointmentCardText(item: AppointmentItem): string {
     lines.push(`Age/Sex: ${ageSex}`);
   }
 
+  if (item.patientType) {
+    lines.push(`Type: ${item.patientType === 'IP' ? `Inpatient (IP)${item.ward ? ` - Ward: ${item.ward}` : ''}` : 'Outpatient (OP)'}`);
+  }
+
   if (item.dateScheduled) {
     const formattedDate = new Date(item.dateScheduled).toLocaleDateString('en-IN', {
       day: 'numeric',
@@ -115,18 +122,53 @@ export default function AppointmentPage() {
   const { appHeading, appSubheading, appLogo } = useAppSettings();
   const { theme, setTheme } = useTheme();
   const { refreshTodayCount } = useAppointmentsCount();
+  const { isOffline, isServerOffline } = usePWA();
+  const isEffectiveOffline = isOffline || isServerOffline;
 
-  const [items, setItems] = useState<AppointmentItem[]>([]);
+  const [items, setItems] = useState<AppointmentItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_worklist');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
 
   // Procedures list loaded from backend for typable dropdown
-  const [proceduresList, setProceduresList] = useState<any[]>([]);
+  const [proceduresList, setProceduresList] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_procedures_list');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
 
   // Holidays state
   const [weeklyHoliday, setWeeklyHoliday] = useState<string>('Sunday');
-  const [holidaysList, setHolidaysList] = useState<HolidayItem[]>([]);
+  const [holidaysList, setHolidaysList] = useState<HolidayItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('irlog_cached_holidays');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState(formatDateKey(new Date()));
   const [newHolidayName, setNewHolidayName] = useState('');
@@ -269,6 +311,8 @@ export default function AppointmentPage() {
     appointmentTime: '',
     dateScheduled: formatDateKey(new Date()),
     notes: '',
+    patientType: '' as 'IP' | 'OP' | '',
+    ward: '',
   });
 
   // Typable dropdown states
@@ -354,6 +398,8 @@ export default function AppointmentPage() {
         procedureName: p.procedureName || '',
         modality: p.modality || null,
         appointmentTime: p.appointmentTime || null,
+        patientType: p.patientType || null,
+        ward: p.ward || null,
         status: p.status || 'Scheduled',
         notDoneReason: p.notDoneReason || null,
         displayOrder: p.displayOrder ?? 0,
@@ -362,8 +408,23 @@ export default function AppointmentPage() {
         dateAdded: p.dateAdded || null,
       }));
       setItems(mapped);
+      try {
+        localStorage.setItem('irlog_cached_worklist', JSON.stringify(mapped));
+      } catch {}
       setError(null);
     } catch (e: any) {
+      // Fallback to cached appointments
+      try {
+        const cached = localStorage.getItem('irlog_cached_worklist');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setItems(parsed);
+            setError(null);
+            return;
+          }
+        }
+      } catch {}
       setError(e.message || 'Failed to load appointments');
     } finally {
       setLoading(false);
@@ -375,7 +436,12 @@ export default function AppointmentPage() {
       const res = await fetch('/api/holidays');
       if (res.ok) {
         const list = await res.json();
-        if (Array.isArray(list)) setHolidaysList(list);
+        if (Array.isArray(list)) {
+          setHolidaysList(list);
+          try {
+            localStorage.setItem('irlog_cached_holidays', JSON.stringify(list));
+          } catch {}
+        }
       }
     } catch (err) {
       console.error('Failed to fetch holidays:', err);
@@ -393,6 +459,10 @@ export default function AppointmentPage() {
   useEffect(() => {
     if (status === 'loading') return;
     if (!session) {
+      // If offline with a cached session, do not redirect to login
+      if (typeof window !== 'undefined' && localStorage.getItem('irlog_cached_session')) {
+        return;
+      }
       router.replace('/login');
       return;
     }
@@ -414,7 +484,12 @@ export default function AppointmentPage() {
     fetch(`/api/procedures/list-all?_=${Date.now()}`)
       .then(r => r.json())
       .then(list => {
-        if (Array.isArray(list)) setProceduresList(list);
+        if (Array.isArray(list)) {
+          setProceduresList(list);
+          try {
+            localStorage.setItem('irlog_cached_procedures_list', JSON.stringify(list));
+          } catch {}
+        }
       })
       .catch(() => { });
   }, [session, status, router]);
@@ -519,6 +594,8 @@ export default function AppointmentPage() {
       it.patientID.toLowerCase().includes(query) ||
       it.procedureName.toLowerCase().includes(query) ||
       (it.modality && it.modality.toLowerCase().includes(query)) ||
+      (it.patientType && it.patientType.toLowerCase().includes(query)) ||
+      (it.ward && it.ward.toLowerCase().includes(query)) ||
       (it.notDoneReason && it.notDoneReason.toLowerCase().includes(query)) ||
       (it.notes && it.notes.toLowerCase().includes(query))
     ).slice(0, 15);
@@ -683,6 +760,10 @@ export default function AppointmentPage() {
   // Drag and Drop Handler with Holiday Caution Prompt
   const onDragEnd = async (result: DropResult) => {
     if (!canEdit) return;
+    if (isEffectiveOffline) {
+      showToast('Cannot reorder appointments while server is offline.');
+      return;
+    }
     const { source, destination } = result;
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
@@ -707,6 +788,10 @@ export default function AppointmentPage() {
 
   // Add & Edit Appointment Modals
   const openCreateModal = (defaultDateKey?: string) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Creating appointments requires an active server connection.');
+      return;
+    }
     if (!canEdit) {
       alert('You need edit permissions to add appointments.');
       return;
@@ -722,6 +807,8 @@ export default function AppointmentPage() {
       appointmentTime: '',
       dateScheduled: defaultDateKey || formatDateKey(new Date()),
       notes: '',
+      patientType: '',
+      ward: '',
     });
     setShowProcedureDropdown(false);
     setProcedureDropdownIndex(-1);
@@ -730,6 +817,10 @@ export default function AppointmentPage() {
   };
 
   const openEditModal = (item: AppointmentItem) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Editing appointments requires an active server connection.');
+      return;
+    }
     if (!canEdit) return;
     setEditingItem(item);
     setFormState({
@@ -742,6 +833,8 @@ export default function AppointmentPage() {
       appointmentTime: item.appointmentTime || '',
       dateScheduled: item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : formatDateKey(new Date()),
       notes: item.notes || '',
+      patientType: (item.patientType as 'IP' | 'OP' | '') || '',
+      ward: item.ward || '',
     });
     setShowProcedureDropdown(false);
     setProcedureDropdownIndex(-1);
@@ -750,6 +843,10 @@ export default function AppointmentPage() {
   };
 
   const handleRefixAppointment = (item: AppointmentItem) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Refixing appointments requires an active server connection.');
+      return;
+    }
     if (!canEdit) return;
     setActionCard(null);
     setEditingItem(null);
@@ -764,6 +861,8 @@ export default function AppointmentPage() {
       appointmentTime: '',
       dateScheduled: formatDateKey(new Date()),
       notes: item.notes ? `[Refixed from ${origDateStr}] ${item.notes}` : `Refixed from ${origDateStr}`,
+      patientType: (item.patientType as 'IP' | 'OP' | '') || '',
+      ward: item.ward || '',
     });
     setShowProcedureDropdown(false);
     setProcedureDropdownIndex(-1);
@@ -785,6 +884,8 @@ export default function AppointmentPage() {
       appointmentTime: formState.appointmentTime || null,
       dateScheduled: formState.dateScheduled ? new Date(`${formState.dateScheduled}T00:00:00`).toISOString() : new Date().toISOString(),
       notes: formState.notes || null,
+      patientType: formState.patientType || null,
+      ward: formState.patientType === 'IP' ? (formState.ward?.trim() || null) : null,
       status: apptModalMode === 'edit' && editingItem ? editingItem.status : 'Scheduled',
     };
 
@@ -838,6 +939,10 @@ export default function AppointmentPage() {
 
   const handleAddHoliday = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Managing holidays requires an active server connection.');
+      return;
+    }
     if (!newHolidayDate || !newHolidayName) return;
     try {
       const res = await fetch('/api/holidays', {
@@ -855,6 +960,10 @@ export default function AppointmentPage() {
   };
 
   const handleDeleteHoliday = async (id: number) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Managing holidays requires an active server connection.');
+      return;
+    }
     try {
       const res = await fetch(`/api/holidays?id=${id}`, {
         method: 'DELETE',
@@ -883,6 +992,10 @@ export default function AppointmentPage() {
   };
 
   const handleSaveEditHoliday = async (id: number) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Managing holidays requires an active server connection.');
+      return;
+    }
     if (!editHolidayDate || !editHolidayName.trim()) {
       alert('Date and Holiday Name are required.');
       return;
@@ -959,6 +1072,8 @@ export default function AppointmentPage() {
       'Patient Name': item.patientName,
       'Age': item.patientAge ?? '',
       'Sex': item.patientSex ?? '',
+      'Patient Type': item.patientType ?? '',
+      'Ward': item.ward ?? '',
       'Procedure Name': item.procedureName,
       'Modality': item.modality ?? '',
       'Status': item.status === 'NotDone' ? 'Not Done' : item.status,
@@ -1105,6 +1220,7 @@ export default function AppointmentPage() {
               <th>Patient ID</th>
               <th>Patient Name</th>
               <th>Age/Sex</th>
+              <th>Type / Ward</th>
               <th>Procedure Name</th>
               <th>Modality</th>
               <th>Status</th>
@@ -1117,12 +1233,14 @@ export default function AppointmentPage() {
       const stClass = item.status === 'Done' ? 'badge-done' : item.status === 'NotDone' ? 'badge-notdone' : item.status === 'Cancelled' ? 'badge-cancelled' : 'badge-scheduled';
       const stLabel = item.status === 'NotDone' ? 'Not Done' : item.status;
       const dateStr = item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : '-';
+      const typeWard = item.patientType ? `${item.patientType}${item.ward ? ` (${item.ward})` : ''}` : '-';
       return `
                 <tr>
                   <td>${dateStr}</td>
                   <td><strong>${item.patientID}</strong></td>
                   <td>${item.patientName}</td>
                   <td>${item.patientAge ?? ''}/${item.patientSex ?? ''}</td>
+                  <td>${typeWard}</td>
                   <td>${item.procedureName}</td>
                   <td>${item.modality || '-'}</td>
                   <td><span class="badge ${stClass}">${stLabel}</span></td>
@@ -1143,6 +1261,10 @@ export default function AppointmentPage() {
   };
 
   const handleDeleteAppointment = async (id: number) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Cannot delete appointments while offline.');
+      return;
+    }
     if (!canEdit) return;
     if (!confirm('Are you sure you want to delete this appointment?')) return;
     const res = await fetch(`/api/worklist/${id}`, { method: 'DELETE' });
@@ -1155,6 +1277,10 @@ export default function AppointmentPage() {
 
   // Status Action Handlers: Done / Not Done / Cancelled
   const handleMarkDone = async (item: AppointmentItem) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Marking procedures as done requires an active server connection.');
+      return;
+    }
     if (!canEdit) return;
 
     // Update status to Done in state and DB
@@ -1178,6 +1304,8 @@ export default function AppointmentPage() {
           patientSex: item.patientSex || '',
           procedureName: item.procedureName,
           modality: item.modality || '',
+          status: item.patientType || '',
+          notes: item.notes || '',
           procedureDate: item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : formatDateKey(new Date()),
           procedureTime: item.appointmentTime || new Date().toTimeString().slice(0, 5),
         };
@@ -1188,6 +1316,10 @@ export default function AppointmentPage() {
   };
 
   const handleOpenNotDoneModal = (item: AppointmentItem) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Updating status requires an active server connection.');
+      return;
+    }
     if (!canEdit) return;
     setNotDoneItem(item);
     setSelectedReason(PRESET_NOT_DONE_REASONS[0]);
@@ -1219,6 +1351,10 @@ export default function AppointmentPage() {
   };
 
   const handleOpenCancelledModal = (item: AppointmentItem) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Updating status requires an active server connection.');
+      return;
+    }
     if (!canEdit) return;
     setCancelledItem(item);
     setSelectedCancelledReason(PRESET_CANCELLED_REASONS[0]);
@@ -1251,6 +1387,10 @@ export default function AppointmentPage() {
   };
 
   const handleResetToScheduled = async (item: AppointmentItem) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Updating status requires an active server connection.');
+      return;
+    }
     if (!canEdit) return;
     const res = await fetch(`/api/worklist/${item.id}`, {
       method: 'PATCH',
@@ -1267,6 +1407,10 @@ export default function AppointmentPage() {
   };
 
   const handleSaveProcedureLog = async (form: any) => {
+    if (isEffectiveOffline) {
+      alert('Server is currently offline. Saving procedure logs requires an active server connection.');
+      return;
+    }
     const res = await fetch('/api/procedures', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1425,11 +1569,38 @@ export default function AppointmentPage() {
                               }}
                               className="hover:bg-gray-100 dark:hover:bg-gray-800"
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
                                 <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-gray-900)' }}>{item.patientName}</div>
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: statusBg, color: statusColor }}>
-                                  {statusLabel}
-                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: statusBg, color: statusColor }}>
+                                    {statusLabel}
+                                  </span>
+                                  {item.patientType === 'IP' && (
+                                    <span
+                                      style={{
+                                        fontSize: 8.5,
+                                        fontWeight: 700,
+                                        padding: '1px 5px',
+                                        borderRadius: 3,
+                                        whiteSpace: 'nowrap',
+                                        background: theme === 'dark' ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff',
+                                        color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                                        border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.35)' : '1px solid #c7d2fe',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 3,
+                                        lineHeight: 1.2,
+                                      }}
+                                    >
+                                      <span>IP</span>
+                                      {item.ward && (
+                                        <span style={{ fontSize: 7.5, fontWeight: 500, opacity: 0.9 }}>
+                                          {item.ward}
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
                               <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1751,30 +1922,68 @@ export default function AppointmentPage() {
                                       }}>
                                         {item.patientName}
                                       </div>
-                                      <span style={{
-                                        fontSize: 9,
-                                        fontWeight: 700,
-                                        padding: '2px 6px',
-                                        borderRadius: 4,
-                                        whiteSpace: 'nowrap',
-                                        flexShrink: 0,
-                                        background: isDone
-                                          ? '#dcfce7'
-                                          : isNotDone
-                                            ? '#fef3c7'
-                                            : isCancelled
-                                              ? '#fee2e2'
-                                              : '#dbeafe',
-                                        color: isDone
-                                          ? '#15803d'
-                                          : isNotDone
-                                            ? '#92400e'
-                                            : isCancelled
-                                              ? '#b91c1c'
-                                              : '#1e40af',
-                                      }}>
-                                        {item.status === 'NotDone' ? 'Not Done' : item.status}
-                                      </span>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                                        <span style={{
+                                          fontSize: 9,
+                                          fontWeight: 700,
+                                          padding: '2px 6px',
+                                          borderRadius: 4,
+                                          whiteSpace: 'nowrap',
+                                          background: isDone
+                                            ? '#dcfce7'
+                                            : isNotDone
+                                              ? '#fef3c7'
+                                              : isCancelled
+                                                ? '#fee2e2'
+                                                : '#dbeafe',
+                                          color: isDone
+                                            ? '#15803d'
+                                            : isNotDone
+                                              ? '#92400e'
+                                              : isCancelled
+                                                ? '#b91c1c'
+                                                : '#1e40af',
+                                        }}>
+                                          {item.status === 'NotDone' ? 'Not Done' : item.status}
+                                        </span>
+                                        {item.patientType === 'IP' && (
+                                          <span
+                                            style={{
+                                              fontSize: 8.5,
+                                              fontWeight: 700,
+                                              padding: '1px 5px',
+                                              borderRadius: 3,
+                                              whiteSpace: 'nowrap',
+                                              background: theme === 'dark' ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff',
+                                              color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                                              border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.35)' : '1px solid #c7d2fe',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: 3,
+                                              lineHeight: 1.2,
+                                              maxWidth: 120,
+                                            }}
+                                            title={item.ward ? `Inpatient - ${item.ward}` : 'Inpatient'}
+                                          >
+                                            <span>IP</span>
+                                            {item.ward && (
+                                              <span
+                                                style={{
+                                                  fontSize: 7.5,
+                                                  fontWeight: 500,
+                                                  opacity: 0.9,
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  whiteSpace: 'nowrap',
+                                                  maxWidth: 70,
+                                                }}
+                                              >
+                                                {item.ward}
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
 
                                     {/* Row 2: ID & Age / Sex */}
@@ -1983,6 +2192,41 @@ export default function AppointmentPage() {
                 <option value="Other">Other</option>
               </select>
             </label>
+
+            {/* Patient Type (IP / OP) - Optional */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Patient Type (Optional)</span>
+              <select
+                value={formState.patientType || ''}
+                onChange={(e) => {
+                  const val = e.target.value as 'IP' | 'OP' | '';
+                  setFormState(prev => ({
+                    ...prev,
+                    patientType: val,
+                    ward: val === 'IP' ? prev.ward : '',
+                  }));
+                }}
+                style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+              >
+                <option value="">Select IP / OP (Optional)</option>
+                <option value="IP">Inpatient (IP)</option>
+                <option value="OP">Outpatient (OP)</option>
+              </select>
+            </label>
+
+            {/* Ward Textbox - Conditional on IP */}
+            {formState.patientType === 'IP' && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-gray-700)' }}>Ward (Optional)</span>
+                <input
+                  type="text"
+                  placeholder="e.g. ICU, Ward 4B, CCU"
+                  value={formState.ward}
+                  onChange={(e) => setFormState(prev => ({ ...prev, ward: e.target.value }))}
+                  style={{ padding: 8, border: '1px solid var(--color-gray-300)', borderRadius: 6, background: 'var(--color-white)', color: 'var(--color-gray-900)' }}
+                />
+              </label>
+            )}
 
             {/* Typable Dropdown with Keyboard Navigation: Procedure Name */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1', position: 'relative' }} ref={procedureDropdownRef}>
@@ -2214,7 +2458,7 @@ export default function AppointmentPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
                 <div style={{ fontSize: 12, color: 'var(--color-gray-500)', marginTop: 2 }}>
-                  ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''}
+                  ID: {actionCard.patientID} {actionCard.patientAge ? `| ${actionCard.patientAge}Y` : ''} {actionCard.patientSex ? `/${actionCard.patientSex}` : ''} {actionCard.patientType === 'IP' ? `| IP${actionCard.ward ? ` (${actionCard.ward})` : ''}` : actionCard.patientType === 'OP' ? '| OP' : ''}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2260,16 +2504,39 @@ export default function AppointmentPage() {
                   <FiShare2 size={12} />
                   <span style={{ fontWeight: 600 }}>Share</span>
                 </button>
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '4px 8px',
-                  borderRadius: 6,
-                  background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
-                  color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
-                }}>
-                  {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    background: actionCard.status === 'Done' ? '#dcfce7' : actionCard.status === 'NotDone' ? '#fef3c7' : actionCard.status === 'Cancelled' ? '#fee2e2' : '#dbeafe',
+                    color: actionCard.status === 'Done' ? '#15803d' : actionCard.status === 'NotDone' ? '#92400e' : actionCard.status === 'Cancelled' ? '#b91c1c' : '#1e40af',
+                  }}>
+                    {actionCard.status === 'NotDone' ? 'Not Done' : actionCard.status}
+                  </span>
+                  {actionCard.patientType === 'IP' && (
+                    <span style={{
+                      fontSize: 9.5,
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: theme === 'dark' ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff',
+                      color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                      border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.35)' : '1px solid #c7d2fe',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}>
+                      <span>IP</span>
+                      {actionCard.ward && (
+                        <span style={{ fontSize: 8.5, fontWeight: 500, opacity: 0.9 }}>
+                          ({actionCard.ward})
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 

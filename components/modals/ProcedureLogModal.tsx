@@ -103,7 +103,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
 
   useEffect(() => {
     if (initialData) {
-      setForm(initialData);
+      setForm({ ...defaultForm, ...initialData });
       setIsEditing(false);
       setProcedureSearch('');
       setRefPhysicianSearch('');
