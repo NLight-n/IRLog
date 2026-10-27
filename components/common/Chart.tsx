@@ -23,6 +23,12 @@ ChartJS.register(
   LineElement
 );
 
+export interface InBarLabelsConfig {
+  values: (number | null)[];
+  type: 'cost' | 'count';
+  currency?: string;
+}
+
 interface ChartProps {
   type: 'bar' | 'line' | 'horizontalBar';
   labels: string[];
@@ -49,6 +55,8 @@ interface ChartProps {
   dualAxis?: boolean;
   legendPosition?: 'top' | 'right' | 'bottom' | 'left';
   showLegend?: boolean;
+  inBarLabels?: InBarLabelsConfig;
+  yAxisType?: 'cost' | 'count' | 'default';
 }
 
 const PALETTE = [
@@ -158,6 +166,8 @@ export default function Chart({
   dualAxis,
   legendPosition = 'top',
   showLegend,
+  inBarLabels,
+  yAxisType = 'default',
 }: ChartProps) {
   // Determine if this is a dual-axis chart (e.g. Cases vs Cost)
   const isDualAxis = dualAxis ?? (!stacked && !!series && series.length === 2 && series.some(s => s.name.toLowerCase().includes('cost')));
@@ -176,6 +186,121 @@ export default function Chart({
     const costColor = series && series[1]?.color ? series[1].color : PALETTE[1].replace('0.7', '1');
     return createDollarIcon(costColor, '#ffffff', isDarkMode, 13);
   }, [series, isDarkMode]);
+
+  // Plugin for rendering vertical numbers within bar rectangles
+  const inBarLabelPlugin = useMemo(() => {
+    if (!inBarLabels || !inBarLabels.values || inBarLabels.values.length === 0) {
+      return undefined;
+    }
+
+    return {
+      id: 'inBarLabelPlugin',
+      afterDatasetsDraw(chart: any) {
+        const { ctx, scales: { x, y } } = chart;
+        if (!x || !y) return;
+
+        const datasetCount = chart.data.datasets.length;
+        if (datasetCount === 0) return;
+
+        const labelsCount = chart.data.labels?.length || 0;
+        const currencySymbol = inBarLabels.currency || currency || '₹';
+
+        for (let i = 0; i < labelsCount; i++) {
+          const rawVal = inBarLabels.values[i];
+          if (rawVal == null || rawVal === 0) continue;
+
+          let barX = 0;
+          let barWidth = 0;
+          let found = false;
+          let topY = y.bottom;
+          let baseY = y.bottom;
+
+          for (let d = 0; d < datasetCount; d++) {
+            const meta = chart.getDatasetMeta(d);
+            if (!meta || meta.hidden) continue;
+            const el = meta.data[i];
+            if (!el) continue;
+
+            if (!found) {
+              barX = el.x;
+              barWidth = el.width || 0;
+              found = true;
+            }
+
+            if (typeof el.y === 'number' && !isNaN(el.y)) {
+              topY = Math.min(topY, el.y);
+            }
+            if (typeof el.base === 'number' && !isNaN(el.base)) {
+              baseY = Math.max(baseY, el.base);
+            }
+          }
+
+          if (!found || barWidth < 6) continue;
+
+          const barHeight = baseY - topY;
+          if (barHeight < 14) continue;
+
+          let text = '';
+          if (inBarLabels.type === 'cost') {
+            const num = Number(rawVal);
+            const full = `${currencySymbol}${num.toLocaleString('en-IN')}`;
+
+            ctx.save();
+            ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+            const fullW = ctx.measureText(full).width;
+
+            if (fullW <= barHeight - 6) {
+              text = full;
+            } else {
+              if (num >= 10000000) {
+                text = `${currencySymbol}${(num / 10000000).toFixed(1).replace(/\.0$/, '')}Cr`;
+              } else if (num >= 100000) {
+                text = `${currencySymbol}${(num / 100000).toFixed(1).replace(/\.0$/, '')}L`;
+              } else if (num >= 1000) {
+                text = `${currencySymbol}${(num / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+              } else {
+                text = `${currencySymbol}${num}`;
+              }
+            }
+            ctx.restore();
+          } else {
+            text = rawVal.toString();
+          }
+
+          if (!text) continue;
+
+          ctx.save();
+          const fontSize = Math.min(10, Math.max(8, Math.floor(barWidth * 0.7)));
+          ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+
+          const textWidth = ctx.measureText(text).width;
+          if (textWidth > barHeight - 4) {
+            ctx.restore();
+            continue;
+          }
+
+          const centerY = (topY + baseY) / 2;
+
+          ctx.translate(barX, centerY);
+          ctx.rotate(-Math.PI / 2);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // Dark outline for contrast
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = 'round';
+          ctx.strokeText(text, 0, 0);
+
+          // White text
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(text, 0, 0);
+
+          ctx.restore();
+        }
+      },
+    };
+  }, [inBarLabels, currency]);
 
   const datasets = series
     ? series.map((s, i) => {
@@ -246,7 +371,7 @@ export default function Chart({
             const val = ctx.parsed.y;
             if (val === null || val === undefined) return ` ${label}: -`;
             const isCost = isDualAxis && (ctx.datasetIndex === 1 || ctx.dataset.yAxisID === 'y1' || label.toLowerCase().includes('cost'));
-            if (isCost) {
+            if (isCost || yAxisType === 'cost') {
               return ` ${label}: ${currency}${Number(val).toLocaleString()}`;
             }
             return ` ${label}: ${Number(val).toLocaleString()}`;
@@ -283,10 +408,13 @@ export default function Chart({
         max: isDualAxis && dualBounds ? dualBounds.axis0.max : undefined,
         ticks: {
           color: textColor,
-          stepSize: isDualAxis && dualBounds ? dualBounds.axis0.stepSize : (stacked ? 1 : undefined),
+          stepSize: isDualAxis && dualBounds ? dualBounds.axis0.stepSize : (stacked && yAxisType !== 'cost' ? 1 : undefined),
           count: isDualAxis && dualBounds ? dualBounds.axis0.count : undefined,
           callback: (val: any) => {
             if (typeof val === 'number') {
+              if (yAxisType === 'cost') {
+                return `${currency}${val.toLocaleString()}`;
+              }
               return val.toLocaleString();
             }
             return val;
@@ -331,5 +459,5 @@ export default function Chart({
   if (type === 'line') {
     return <div style={{ height }}><Line data={chartData} options={options} /></div>;
   }
-  return <div style={{ height }}><Bar data={chartData} options={options} /></div>;
+  return <div style={{ height }}><Bar data={chartData} options={options} plugins={inBarLabelPlugin ? [inBarLabelPlugin] : []} /></div>;
 } 

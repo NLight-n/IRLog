@@ -25,11 +25,14 @@ interface CumulativeMonthData {
   key: string;
   label: string;
   total: number;
+  totalCost?: number;
   currentDay?: number;
   countAtCurrentDay?: number;
+  costAtCurrentDay?: number;
   daysInMonth: number;
   offset?: number;
   data: (number | null)[];
+  costData?: (number | null)[];
 }
 
 interface CumulativeResponse {
@@ -44,6 +47,7 @@ interface WormChartCardProps {
 
 export default function WormChartCard({ isDarkMode = false }: WormChartCardProps) {
   const [modality, setModality] = useState('All');
+  const [metric, setMetric] = useState<'count' | 'cost'>('count');
   const [data, setData] = useState<CumulativeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -124,9 +128,10 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
 
     // 1. Current Month Line (Always shown)
     const curDay = data.currentMonth.currentDay || 1;
+    const curData = metric === 'cost' ? (data.currentMonth.costData || data.currentMonth.data) : data.currentMonth.data;
     seriesList.push({
       name: `${data.currentMonth.label} (Current)`,
-      data: data.currentMonth.data,
+      data: curData,
       color: CURRENT_MONTH_COLOR,
       borderWidth: 3,
       fill: false,
@@ -144,9 +149,10 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
       const pastMonth = data.months.find(m => m.offset === offset);
       if (pastMonth) {
         const color = PAST_MONTH_COLORS[(offset - 1) % PAST_MONTH_COLORS.length];
+        const pastData = metric === 'cost' ? (pastMonth.costData || pastMonth.data) : pastMonth.data;
         seriesList.push({
           name: pastMonth.label,
-          data: pastMonth.data,
+          data: pastData,
           color,
           borderWidth: 2,
           fill: false,
@@ -158,7 +164,7 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
     });
 
     return seriesList;
-  }, [data, selectedOffsets]);
+  }, [data, selectedOffsets, metric]);
 
   const currentDay = data?.currentMonth.currentDay || new Date().getDate();
 
@@ -168,30 +174,81 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h4 className="mb-0 text-lg font-medium">Cumulative Case Trends</h4>
+            <h4 className="mb-0 text-lg font-medium">{metric === 'count' ? 'Cumulative Case Trends' : 'Cumulative Cost Trends'}</h4>
           </div>
           <p className="text-xs text-muted" style={{ margin: '4px 0 0 0', color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>
-            Day-by-day cumulative case count comparison. Current month line always shown.
+            {metric === 'count'
+              ? 'Day-by-day cumulative case count comparison. Current month line always shown.'
+              : 'Day-by-day cumulative procedure cost comparison (\u20B9). Current month line always shown.'}
           </p>
         </div>
 
-        {/* Modality Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label className="block text-sm font-medium" htmlFor="worm-modality" style={{ margin: 0 }}>
-            Modality
-          </label>
-          <select
-            id="worm-modality"
-            className="form-input"
-            value={modality}
-            onChange={e => setModality(e.target.value)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {/* Count / Cost Toggle */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: isDarkMode ? '#1e293b' : '#f1f5f9',
+              borderRadius: 8,
+              padding: 2,
+              border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+            }}
           >
-            {MODALITIES.map(m => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+            <button
+              type="button"
+              onClick={() => setMetric('count')}
+              style={{
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: metric === 'count' ? 600 : 500,
+                borderRadius: 6,
+                border: 'none',
+                background: metric === 'count' ? 'var(--color-accent)' : 'transparent',
+                color: metric === 'count' ? '#ffffff' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Case Count
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetric('cost')}
+              style={{
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: metric === 'cost' ? 600 : 500,
+                borderRadius: 6,
+                border: 'none',
+                background: metric === 'cost' ? 'var(--color-accent)' : 'transparent',
+                color: metric === 'cost' ? '#ffffff' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Case Cost
+            </button>
+          </div>
+
+          {/* Modality Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label className="block text-sm font-medium" htmlFor="worm-modality" style={{ margin: 0 }}>
+              Modality
+            </label>
+            <select
+              id="worm-modality"
+              className="form-input"
+              value={modality}
+              onChange={e => setModality(e.target.value)}
+            >
+              {MODALITIES.map(m => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -223,7 +280,9 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                 highlightLabel={currentDay.toString()}
                 isDarkMode={isDarkMode}
                 dualAxis={false}
-                showLegend={false} // Side legend handles display cleanly
+                showLegend={false}
+                currency="₹"
+                yAxisType={metric}
               />
               <div
                 style={{
@@ -233,7 +292,9 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                   color: isDarkMode ? '#71717a' : '#9ca3af',
                 }}
               >
-                X-Axis: Days of Month (1 – 31) • Y-Axis: Cumulative Case Count
+                {metric === 'count'
+                  ? 'X-Axis: Days of Month (1 – 31) • Y-Axis: Cumulative Case Count'
+                  : 'X-Axis: Days of Month (1 – 31) • Y-Axis: Cumulative Procedure Cost (₹)'}
               </div>
             </div>
 
@@ -303,9 +364,13 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 11 }}>
-                  <span style={{ color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>Cases to date:</span>
+                  <span style={{ color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>
+                    {metric === 'count' ? 'Cases to date:' : 'Cost to date:'}
+                  </span>
                   <span style={{ fontWeight: 700, color: CURRENT_MONTH_COLOR }}>
-                    {data.currentMonth.total} cases
+                    {metric === 'count'
+                      ? `${data.currentMonth.total} cases`
+                      : `\u20B9${Number(data.currentMonth.totalCost || 0).toLocaleString('en-IN')}`}
                   </span>
                 </div>
               </div>
@@ -338,7 +403,9 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                     const m = data.months.find(pm => pm.offset === offset);
                     if (!m) return null;
                     const color = PAST_MONTH_COLORS[(offset - 1) % PAST_MONTH_COLORS.length];
-                    const atDayDiff = (data.currentMonth.total || 0) - (m.countAtCurrentDay || 0);
+                    const atDayDiff = metric === 'count'
+                      ? (data.currentMonth.total || 0) - (m.countAtCurrentDay || 0)
+                      : (data.currentMonth.totalCost || 0) - (m.costAtCurrentDay || 0);
 
                     return (
                       <div
@@ -351,14 +418,16 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                           borderLeft: `4px solid ${color}`,
                         }}
                       >
-                        {/* Line 1: Month Name, Total Cases, and Remove Button */}
+                        {/* Line 1: Month Name, Total, and Remove Button */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                           <span style={{ fontWeight: 600, fontSize: 12, color: isDarkMode ? '#f4f4f5' : '#18181b', whiteSpace: 'nowrap' }}>
                             {m.label}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 11, fontWeight: 600, color: isDarkMode ? '#d4d4d8' : '#374151' }}>
-                              {m.total} cases
+                              {metric === 'count'
+                                ? `${m.total} cases`
+                                : `\u20B9${Number(m.totalCost || 0).toLocaleString('en-IN')}`}
                             </span>
                             <button
                               type="button"
@@ -389,14 +458,24 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                             color: isDarkMode ? '#a1a1aa' : '#6b7280',
                           }}
                         >
-                          <span>Day {currentDay}: <strong style={{ color: isDarkMode ? '#e4e4e7' : '#1f2937' }}>{m.countAtCurrentDay}</strong></span>
+                          <span>
+                            Day {currentDay}:{' '}
+                            <strong style={{ color: isDarkMode ? '#e4e4e7' : '#1f2937' }}>
+                              {metric === 'count'
+                                ? m.countAtCurrentDay
+                                : `\u20B9${Number(m.costAtCurrentDay || 0).toLocaleString('en-IN')}`}
+                            </strong>
+                          </span>
                           <span
                             style={{
                               fontWeight: 600,
                               color: atDayDiff > 0 ? '#10b981' : atDayDiff < 0 ? '#ef4444' : '#6b7280',
                             }}
                           >
-                            {atDayDiff >= 0 ? `+${atDayDiff}` : atDayDiff} vs today
+                            {metric === 'count'
+                              ? (atDayDiff >= 0 ? `+${atDayDiff}` : atDayDiff)
+                              : (atDayDiff >= 0 ? `+\u20B9${atDayDiff.toLocaleString('en-IN')}` : `-\u20B9${Math.abs(atDayDiff).toLocaleString('en-IN')}`)}{' '}
+                            vs today
                           </span>
                         </div>
                       </div>
@@ -585,7 +664,9 @@ export default function WormChartCard({ isDarkMode = false }: WormChartCardProps
                         fontWeight: isSelected ? 600 : 400,
                       }}
                     >
-                      {m.total} cases
+                      {metric === 'count'
+                        ? `${m.total} cases`
+                        : `\u20B9${Number(m.totalCost || 0).toLocaleString('en-IN')}`}
                     </span>
                   </button>
                 );

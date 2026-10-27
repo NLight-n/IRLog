@@ -148,44 +148,88 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const targetModalities = (modality && modality !== 'All') ? [modality as string] : allModalities;
 
       const labels: string[] = [];
-      // Initialize per-modality arrays
       const modalityCounts: Record<string, (number | null)[]> = {};
+      const modalityCosts: Record<string, (number | null)[]> = {};
       for (const m of targetModalities) {
         modalityCounts[m] = [];
+        modalityCosts[m] = [];
+      }
+
+      const dayTotalCounts: (number | null)[] = [];
+      const dayTotalCosts: (number | null)[] = [];
+
+      const monthStart = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
+      const monthEnd = new Date(Date.UTC(targetYear, targetMonth, daysInMonth, 23, 59, 59, 999));
+
+      const logs = await prisma.procedureLog.findMany({
+        where: {
+          procedureDate: { gte: monthStart, lte: monthEnd },
+          ...(modality && modality !== 'All' ? { modality: modality as string } : {}),
+        },
+        select: {
+          procedureDate: true,
+          modality: true,
+          procedureCost: true,
+        },
+      });
+
+      // Group by day and modality
+      const grouped: Record<number, { counts: Record<string, number>; costs: Record<string, number>; totalCount: number; totalCost: number }> = {};
+      for (const log of logs) {
+        const d = new Date(log.procedureDate);
+        const day = d.getUTCDate();
+        if (!grouped[day]) {
+          grouped[day] = { counts: {}, costs: {}, totalCount: 0, totalCost: 0 };
+        }
+        const m = log.modality || 'Other';
+        grouped[day].counts[m] = (grouped[day].counts[m] || 0) + 1;
+        grouped[day].costs[m] = (grouped[day].costs[m] || 0) + (log.procedureCost || 0);
+        grouped[day].totalCount += 1;
+        grouped[day].totalCost += (log.procedureCost || 0);
       }
 
       for (let day = 1; day <= daysInMonth; day++) {
         labels.push(day.toString());
 
         if (day <= lastDataDay) {
-          const start = new Date(Date.UTC(targetYear, targetMonth, day, 0, 0, 0, 0));
-          const end = new Date(Date.UTC(targetYear, targetMonth, day, 23, 59, 59, 999));
-
+          const dayData = grouped[day];
           for (const m of targetModalities) {
-            const count = await prisma.procedureLog.count({
-              where: {
-                procedureDate: { gte: start, lte: end },
-                modality: m,
-              },
-            });
-            modalityCounts[m].push(count);
+            modalityCounts[m].push(dayData?.counts[m] || 0);
+            modalityCosts[m].push(dayData?.costs[m] || 0);
           }
+          dayTotalCounts.push(dayData?.totalCount || 0);
+          dayTotalCosts.push(dayData?.totalCost || 0);
         } else {
           for (const m of targetModalities) {
             modalityCounts[m].push(null);
+            modalityCosts[m].push(null);
           }
+          dayTotalCounts.push(null);
+          dayTotalCosts.push(null);
         }
       }
 
-      const series = targetModalities.map(m => ({
+      const seriesCount = targetModalities.map(m => ({
         name: m,
         data: modalityCounts[m],
         color: modalityColors[m] || 'rgba(107, 114, 128, 0.8)',
       }));
 
+      const seriesCost = targetModalities.map(m => ({
+        name: m,
+        data: modalityCosts[m],
+        color: modalityColors[m] || 'rgba(107, 114, 128, 0.8)',
+      }));
+
       return res.json({
         labels,
-        series,
+        series: seriesCount,
+        seriesCount,
+        seriesCost,
+        dayTotals: {
+          count: dayTotalCounts,
+          cost: dayTotalCosts,
+        },
         monthLabel: `${monthNames[targetMonth]} ${targetYear}`
       });
     }
@@ -223,11 +267,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where,
         select: {
           procedureDate: true,
+          procedureCost: true,
         },
       });
 
-      // Group counts by "YYYY-MM" and day
+      // Group counts and costs by "YYYY-MM" and day
       const counts: Record<string, Record<number, number>> = {};
+      const costs: Record<string, Record<number, number>> = {};
       for (const log of logs) {
         const d = new Date(log.procedureDate);
         const y = d.getUTCFullYear();
@@ -235,20 +281,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const day = d.getUTCDate();
         const key = `${y}-${String(m + 1).padStart(2, '0')}`;
         if (!counts[key]) counts[key] = {};
+        if (!costs[key]) costs[key] = {};
         counts[key][day] = (counts[key][day] || 0) + 1;
+        costs[key][day] = (costs[key][day] || 0) + (log.procedureCost || 0);
       }
 
       // Current month cumulative data
       const currentDaysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
       const currentKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
       const currentData: (number | null)[] = [];
+      const currentCostData: (number | null)[] = [];
       let currentCum = 0;
+      let currentCostCum = 0;
       for (let day = 1; day <= 31; day++) {
         if (day <= currentDay) {
           currentCum += (counts[currentKey]?.[day] || 0);
           currentData.push(currentCum);
+          currentCostCum += (costs[currentKey]?.[day] || 0);
+          currentCostData.push(currentCostCum);
         } else {
           currentData.push(null);
+          currentCostData.push(null);
         }
       }
 
@@ -256,9 +309,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         key: currentKey,
         label: `${monthNames[currentMonth]} ${currentYear}`,
         total: currentCum,
+        totalCost: currentCostCum,
         currentDay,
         daysInMonth: currentDaysInMonth,
         data: currentData,
+        costData: currentCostData,
       };
 
       // Past 12 months cumulative data
@@ -274,24 +329,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const key = `${y}-${String(m + 1).padStart(2, '0')}`;
         const label = `${monthNames[m]} ${y}`;
         const data: (number | null)[] = [];
+        const costData: (number | null)[] = [];
         let cum = 0;
+        let costCum = 0;
         for (let day = 1; day <= 31; day++) {
           if (day <= daysInMonth) {
             cum += (counts[key]?.[day] || 0);
             data.push(cum);
+            costCum += (costs[key]?.[day] || 0);
+            costData.push(costCum);
           } else {
             data.push(null);
+            costData.push(null);
           }
         }
         const countAtCurrentDay = data[Math.min(currentDay, daysInMonth) - 1] ?? 0;
+        const costAtCurrentDay = costData[Math.min(currentDay, daysInMonth) - 1] ?? 0;
         pastMonths.push({
           key,
           label,
           offset,
           total: cum,
+          totalCost: costCum,
           countAtCurrentDay,
+          costAtCurrentDay,
           daysInMonth,
           data,
+          costData,
         });
       }
 
@@ -360,28 +424,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const logs = await prisma.procedureLog.findMany({
         where,
-        select: { procedureDate: true },
+        select: {
+          procedureDate: true,
+          procedureCost: true,
+        },
       });
 
-      // Group counts by year and month (0..11)
+      // Group counts and costs by year and month (0..11)
       const counts: Record<number, Record<number, number>> = {};
+      const costs: Record<number, Record<number, number>> = {};
       for (const log of logs) {
         const d = new Date(log.procedureDate);
         const y = d.getUTCFullYear();
         const m = d.getUTCMonth();
         if (!counts[y]) counts[y] = {};
+        if (!costs[y]) costs[y] = {};
         counts[y][m] = (counts[y][m] || 0) + 1;
+        costs[y][m] = (costs[y][m] || 0) + (log.procedureCost || 0);
       }
 
       // Build current year cumulative data
       const currentData: (number | null)[] = [];
+      const currentCostData: (number | null)[] = [];
       let currentCum = 0;
+      let currentCostCum = 0;
       for (let m = 0; m < 12; m++) {
         if (m <= currentMonth) {
           currentCum += (counts[currentYear]?.[m] || 0);
           currentData.push(currentCum);
+          currentCostCum += (costs[currentYear]?.[m] || 0);
+          currentCostData.push(currentCostCum);
         } else {
           currentData.push(null);
+          currentCostData.push(null);
         }
       }
 
@@ -389,27 +464,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         year: currentYear,
         label: currentYear.toString(),
         total: currentCum,
+        totalCost: currentCostCum,
         currentMonth,
         currentMonthName: monthNames[currentMonth],
         data: currentData,
+        costData: currentCostData,
       };
 
       // Build past years cumulative data (from currentYear - 1 down to startYear)
       const pastYears = [];
       for (let y = currentYear - 1; y >= startYear; y--) {
         const data: (number | null)[] = [];
+        const costData: (number | null)[] = [];
         let cum = 0;
+        let costCum = 0;
         for (let m = 0; m < 12; m++) {
           cum += (counts[y]?.[m] || 0);
           data.push(cum);
+          costCum += (costs[y]?.[m] || 0);
+          costData.push(costCum);
         }
         const countAtCurrentMonth = data[currentMonth] ?? 0;
+        const costAtCurrentMonth = costData[currentMonth] ?? 0;
         pastYears.push({
           year: y,
           label: y.toString(),
           total: cum,
+          totalCost: costCum,
           countAtCurrentMonth,
+          costAtCurrentMonth,
           data,
+          costData,
         });
       }
 

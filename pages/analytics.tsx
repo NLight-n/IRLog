@@ -11,7 +11,14 @@ import YearlyWormChartCard from '../components/analytics/YearlyWormChartCard';
 const MODALITIES = ['All', 'USG', 'CT', 'OT', 'XF', 'DSA'];
 
 function useAnalyticsData(type: string, params: Record<string, string | undefined>) {
-  const [data, setData] = React.useState<{ labels: string[]; series: { name: string; data: number[] }[]; monthLabel?: string } | null>(null);
+  const [data, setData] = React.useState<{
+    labels: string[];
+    series: { name: string; data: (number | null)[]; color?: string }[];
+    seriesCount?: { name: string; data: (number | null)[]; color?: string }[];
+    seriesCost?: { name: string; data: (number | null)[]; color?: string }[];
+    dayTotals?: { count: (number | null)[]; cost: (number | null)[] };
+    monthLabel?: string;
+  } | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   React.useEffect(() => {
@@ -55,6 +62,13 @@ export default function AnalyticsPage() {
   const [monthlyModality, setMonthlyModality] = useState('All');
   // Monthly Trends navigation offset (0 = current, 1 = 1 month back, etc.)
   const [monthOffset, setMonthOffset] = useState(0);
+  // Monthly Trends duration: desktop default 18 months, mobile view default 6 months
+  const [monthlyMonths, setMonthlyMonths] = useState(18);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      setMonthlyMonths(6);
+    }
+  }, []);
 
   // Timer ref for distinguishing single vs double click on right arrow
   const rightClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,6 +90,8 @@ export default function AnalyticsPage() {
   // Daily Trends filter & navigation
   const [dailyModality, setDailyModality] = useState('All');
   const [dailyOffset, setDailyOffset] = useState(0);
+  // Daily Trends metric toggle: 'count' (Case Count) vs 'cost' (Case Cost)
+  const [dailyMetric, setDailyMetric] = useState<'count' | 'cost'>('count');
 
   const dailyRightClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleDailyRightArrowClick = useCallback(() => {
@@ -105,7 +121,11 @@ export default function AnalyticsPage() {
   const currentMonthLabel = `${_monthNames[_now.getMonth()]} ${_now.getFullYear()}`;
   const currentDayLabel = _now.getDate().toString();
 
-  const monthly = useAnalyticsData('monthly', { modality: monthlyModality, monthOffset: monthOffset.toString() });
+  const monthly = useAnalyticsData('monthly', {
+    modality: monthlyModality,
+    monthOffset: monthOffset.toString(),
+    limit: monthlyMonths.toString(),
+  });
   const daily = useAnalyticsData('daily', { modality: dailyModality, monthOffset: dailyOffset.toString() });
   const modalityTrends = useAnalyticsData('modality', { dateFrom: modalityDateFrom, dateTo: modalityDateTo });
   const physician = useAnalyticsData('physician', { dateFrom: physicianDateFrom, dateTo: physicianDateTo });
@@ -199,11 +219,47 @@ export default function AnalyticsPage() {
                 </button>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label className="block text-sm font-medium" htmlFor="monthly-modality" style={{ margin: 0 }}>Modality</label>
-              <select id="monthly-modality" className="form-input" value={monthlyModality} onChange={e => setMonthlyModality(e.target.value)}>
-                {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Range Toggle: 6, 12, 18, 24 months */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: theme === 'dark' ? '#1e293b' : '#f1f5f9',
+                  borderRadius: 8,
+                  padding: 2,
+                  border: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                }}
+              >
+                {[6, 12, 18, 24].map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMonthlyMonths(m)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      fontWeight: monthlyMonths === m ? 600 : 500,
+                      borderRadius: 6,
+                      border: 'none',
+                      background: monthlyMonths === m ? 'var(--color-accent)' : 'transparent',
+                      color: monthlyMonths === m ? '#ffffff' : (theme === 'dark' ? '#94a3b8' : '#64748b'),
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {m} months
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label className="block text-sm font-medium" htmlFor="monthly-modality" style={{ margin: 0 }}>Modality</label>
+                <select id="monthly-modality" className="form-input" value={monthlyModality} onChange={e => setMonthlyModality(e.target.value)}>
+                  {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
@@ -338,11 +394,61 @@ export default function AnalyticsPage() {
                 </button>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label className="block text-sm font-medium" htmlFor="daily-modality" style={{ margin: 0 }}>Modality</label>
-              <select id="daily-modality" className="form-input" value={dailyModality} onChange={e => setDailyModality(e.target.value)}>
-                {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Case Count / Case Cost Toggle */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: theme === 'dark' ? '#1e293b' : '#f1f5f9',
+                  borderRadius: 8,
+                  padding: 2,
+                  border: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDailyMetric('count')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: dailyMetric === 'count' ? 600 : 500,
+                    borderRadius: 6,
+                    border: 'none',
+                    background: dailyMetric === 'count' ? 'var(--color-accent)' : 'transparent',
+                    color: dailyMetric === 'count' ? '#ffffff' : (theme === 'dark' ? '#94a3b8' : '#64748b'),
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Case Count
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDailyMetric('cost')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: dailyMetric === 'cost' ? 600 : 500,
+                    borderRadius: 6,
+                    border: 'none',
+                    background: dailyMetric === 'cost' ? 'var(--color-accent)' : 'transparent',
+                    color: dailyMetric === 'cost' ? '#ffffff' : (theme === 'dark' ? '#94a3b8' : '#64748b'),
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Case Cost
+                </button>
+              </div>
+
+              {/* Modality Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label className="block text-sm font-medium" htmlFor="daily-modality" style={{ margin: 0 }}>Modality</label>
+                <select id="daily-modality" className="form-input" value={dailyModality} onChange={e => setDailyModality(e.target.value)}>
+                  {MODALITIES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
@@ -375,7 +481,35 @@ export default function AnalyticsPage() {
 
             {/* Chart */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              {daily.loading ? <div>Loading...</div> : daily.error ? <div style={{ color: 'red' }}>{daily.error}</div> : daily.data && <Chart type="bar" labels={daily.data.labels} series={daily.data.series} title={`Daily Trends \u2014 ${daily.data.monthLabel || ''}`} height={380} stacked highlightLabel={dailyOffset === 0 ? currentDayLabel : undefined} isDarkMode={theme === 'dark'} />}
+              {daily.loading ? (
+                <div>Loading...</div>
+              ) : daily.error ? (
+                <div style={{ color: 'red' }}>{daily.error}</div>
+              ) : (
+                daily.data && (
+                  <Chart
+                    type="bar"
+                    labels={daily.data.labels}
+                    series={
+                      dailyMetric === 'count'
+                        ? (daily.data.seriesCount || daily.data.series)
+                        : (daily.data.seriesCost || [])
+                    }
+                    title={`Daily Trends \u2014 ${daily.data.monthLabel || ''}`}
+                    height={380}
+                    stacked
+                    highlightLabel={dailyOffset === 0 ? currentDayLabel : undefined}
+                    isDarkMode={theme === 'dark'}
+                    currency="₹"
+                    yAxisType={dailyMetric}
+                    inBarLabels={{
+                      values: dailyMetric === 'count' ? (daily.data.dayTotals?.cost || []) : (daily.data.dayTotals?.count || []),
+                      type: dailyMetric === 'count' ? 'cost' : 'count',
+                      currency: '₹',
+                    }}
+                  />
+                )
+              )}
             </div>
 
             {/* Right Arrow - Desktop Side Nav */}
@@ -406,6 +540,11 @@ export default function AnalyticsPage() {
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
               </button>
             </div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: theme === 'dark' ? '#71717a' : '#9ca3af' }}>
+            {dailyMetric === 'count'
+              ? 'X-Axis: Days of Month • Bars: Case Count • Numbers in bars: Day Procedure Cost (\u20B9)'
+              : 'X-Axis: Days of Month • Bars: Procedure Cost (\u20B9) • Numbers in bars: Day Case Count'}
           </div>
           {/* Range indicator */}
           {daily.data && dailyOffset > 0 && (

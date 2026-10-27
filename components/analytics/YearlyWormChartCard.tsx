@@ -25,10 +25,13 @@ interface CumulativeYearData {
   year: number;
   label: string;
   total: number;
+  totalCost?: number;
   currentMonth?: number;
   currentMonthName?: string;
   countAtCurrentMonth?: number;
+  costAtCurrentMonth?: number;
   data: (number | null)[];
+  costData?: (number | null)[];
 }
 
 interface CumulativeYearlyResponse {
@@ -43,6 +46,7 @@ interface YearlyWormChartCardProps {
 
 export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormChartCardProps) {
   const [modality, setModality] = useState('All');
+  const [metric, setMetric] = useState<'count' | 'cost'>('count');
   const [data, setData] = useState<CumulativeYearlyResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -132,9 +136,10 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
 
     // 1. Current Year Line (Always shown)
     const curMonth = data.currentYear.currentMonth ?? new Date().getMonth();
+    const curData = metric === 'cost' ? (data.currentYear.costData || data.currentYear.data) : data.currentYear.data;
     seriesList.push({
       name: `${data.currentYear.label} (Current)`,
-      data: data.currentYear.data,
+      data: curData,
       color: CURRENT_YEAR_COLOR,
       borderWidth: 3,
       fill: false,
@@ -153,9 +158,10 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
       const pastYear = data.years[pastYearIndex];
       if (pastYear) {
         const color = PAST_YEAR_COLORS[pastYearIndex % PAST_YEAR_COLORS.length];
+        const pastData = metric === 'cost' ? (pastYear.costData || pastYear.data) : pastYear.data;
         seriesList.push({
           name: pastYear.label,
-          data: pastYear.data,
+          data: pastData,
           color,
           borderWidth: 2,
           fill: false,
@@ -167,7 +173,7 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
     });
 
     return seriesList;
-  }, [data, selectedYears]);
+  }, [data, selectedYears, metric]);
 
   const curMonthName = data?.currentYear.currentMonthName || 'Current Month';
 
@@ -177,30 +183,81 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h4 className="mb-0 text-lg font-medium">Cumulative Yearly Trends</h4>
+            <h4 className="mb-0 text-lg font-medium">{metric === 'count' ? 'Cumulative Yearly Trends' : 'Cumulative Yearly Cost Trends'}</h4>
           </div>
           <p className="text-xs text-muted" style={{ margin: '4px 0 0 0', color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>
-            Month-by-month cumulative case count comparison across years. Current year line always shown.
+            {metric === 'count'
+              ? 'Month-by-month cumulative case count comparison across years. Current year line always shown.'
+              : 'Month-by-month cumulative procedure cost comparison (\u20B9) across years. Current year line always shown.'}
           </p>
         </div>
 
-        {/* Modality Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label className="block text-sm font-medium" htmlFor="yearly-worm-modality" style={{ margin: 0 }}>
-            Modality
-          </label>
-          <select
-            id="yearly-worm-modality"
-            className="form-input"
-            value={modality}
-            onChange={e => setModality(e.target.value)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {/* Count / Cost Toggle */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: isDarkMode ? '#1e293b' : '#f1f5f9',
+              borderRadius: 8,
+              padding: 2,
+              border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+            }}
           >
-            {MODALITIES.map(m => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+            <button
+              type="button"
+              onClick={() => setMetric('count')}
+              style={{
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: metric === 'count' ? 600 : 500,
+                borderRadius: 6,
+                border: 'none',
+                background: metric === 'count' ? 'var(--color-accent)' : 'transparent',
+                color: metric === 'count' ? '#ffffff' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Case Count
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetric('cost')}
+              style={{
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: metric === 'cost' ? 600 : 500,
+                borderRadius: 6,
+                border: 'none',
+                background: metric === 'cost' ? 'var(--color-accent)' : 'transparent',
+                color: metric === 'cost' ? '#ffffff' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Case Cost
+            </button>
+          </div>
+
+          {/* Modality Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label className="block text-sm font-medium" htmlFor="yearly-worm-modality" style={{ margin: 0 }}>
+              Modality
+            </label>
+            <select
+              id="yearly-worm-modality"
+              className="form-input"
+              value={modality}
+              onChange={e => setModality(e.target.value)}
+            >
+              {MODALITIES.map(m => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -233,6 +290,8 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                 isDarkMode={isDarkMode}
                 dualAxis={false}
                 showLegend={false}
+                currency="₹"
+                yAxisType={metric}
               />
               <div
                 style={{
@@ -242,7 +301,9 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                   color: isDarkMode ? '#71717a' : '#9ca3af',
                 }}
               >
-                X-Axis: Months (Jan – Dec) • Y-Axis: Cumulative Case Count
+                {metric === 'count'
+                  ? 'X-Axis: Months (Jan – Dec) • Y-Axis: Cumulative Case Count'
+                  : 'X-Axis: Months (Jan – Dec) • Y-Axis: Cumulative Procedure Cost (₹)'}
               </div>
             </div>
 
@@ -312,9 +373,13 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 11 }}>
-                  <span style={{ color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>Cases to date:</span>
+                  <span style={{ color: isDarkMode ? '#a1a1aa' : '#6b7280' }}>
+                    {metric === 'count' ? 'Cases to date:' : 'Cost to date:'}
+                  </span>
                   <span style={{ fontWeight: 700, color: CURRENT_YEAR_COLOR }}>
-                    {data.currentYear.total} cases
+                    {metric === 'count'
+                      ? `${data.currentYear.total} cases`
+                      : `\u20B9${Number(data.currentYear.totalCost || 0).toLocaleString('en-IN')}`}
                   </span>
                 </div>
               </div>
@@ -348,7 +413,9 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                     const y = data.years[pastYearIndex];
                     if (!y) return null;
                     const color = PAST_YEAR_COLORS[pastYearIndex % PAST_YEAR_COLORS.length];
-                    const atMonthDiff = (data.currentYear.total || 0) - (y.countAtCurrentMonth || 0);
+                    const atMonthDiff = metric === 'count'
+                      ? (data.currentYear.total || 0) - (y.countAtCurrentMonth || 0)
+                      : (data.currentYear.totalCost || 0) - (y.costAtCurrentMonth || 0);
 
                     return (
                       <div
@@ -368,7 +435,9 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 11, fontWeight: 600, color: isDarkMode ? '#d4d4d8' : '#374151' }}>
-                              {y.total} cases
+                              {metric === 'count'
+                                ? `${y.total} cases`
+                                : `\u20B9${Number(y.totalCost || 0).toLocaleString('en-IN')}`}
                             </span>
                             <button
                               type="button"
@@ -399,14 +468,24 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                             color: isDarkMode ? '#a1a1aa' : '#6b7280',
                           }}
                         >
-                          <span>At {curMonthName}: <strong style={{ color: isDarkMode ? '#e4e4e7' : '#1f2937' }}>{y.countAtCurrentMonth}</strong></span>
+                          <span>
+                            Through {curMonthName}:{' '}
+                            <strong style={{ color: isDarkMode ? '#e4e4e7' : '#1f2937' }}>
+                              {metric === 'count'
+                                ? y.countAtCurrentMonth
+                                : `\u20B9${Number(y.costAtCurrentMonth || 0).toLocaleString('en-IN')}`}
+                            </strong>
+                          </span>
                           <span
                             style={{
                               fontWeight: 600,
                               color: atMonthDiff > 0 ? '#10b981' : atMonthDiff < 0 ? '#ef4444' : '#6b7280',
                             }}
                           >
-                            {atMonthDiff >= 0 ? `+${atMonthDiff}` : atMonthDiff} vs today
+                            {metric === 'count'
+                              ? (atMonthDiff >= 0 ? `+${atMonthDiff}` : atMonthDiff)
+                              : (atMonthDiff >= 0 ? `+\u20B9${atMonthDiff.toLocaleString('en-IN')}` : `-\u20B9${Math.abs(atMonthDiff).toLocaleString('en-IN')}`)}{' '}
+                            vs current year
                           </span>
                         </div>
                       </div>
@@ -604,7 +683,9 @@ export default function YearlyWormChartCard({ isDarkMode = false }: YearlyWormCh
                           fontWeight: isSelected ? 600 : 400,
                         }}
                       >
-                        {y.total} cases
+                        {metric === 'count'
+                          ? `${y.total} cases`
+                          : `\u20B9${Number(y.totalCost || 0).toLocaleString('en-IN')}`}
                       </span>
                     </button>
                   );
