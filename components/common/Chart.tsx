@@ -187,120 +187,156 @@ export default function Chart({
     return createDollarIcon(costColor, '#ffffff', isDarkMode, 13);
   }, [series, isDarkMode]);
 
-  // Plugin for rendering vertical numbers within bar rectangles
-  const inBarLabelPlugin = useMemo(() => {
-    if (!inBarLabels || !inBarLabels.values || inBarLabels.values.length === 0) {
-      return undefined;
+// Plugin for rendering vertical numbers within bar rectangles
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  const r = Math.min(radius, width / 2, height / 2);
+  if (typeof (ctx as any).roundRect === 'function') {
+    ctx.beginPath();
+    (ctx as any).roundRect(x, y, width, height, r);
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.arcTo(x + width, y, x + width, y + r, r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
+    ctx.lineTo(x + r, y + height);
+    ctx.arcTo(x, y + height, x, y + height - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+const inBarLabelPlugin = {
+  id: 'inBarLabels',
+  afterDatasetsDraw(chart: any, _args: any, pluginOptions: any) {
+    const config: (InBarLabelsConfig & { isDarkMode?: boolean }) | undefined =
+      pluginOptions || chart.options?.plugins?.inBarLabels;
+    if (!config || !config.values || config.values.length === 0) {
+      return;
     }
 
-    return {
-      id: 'inBarLabelPlugin',
-      afterDatasetsDraw(chart: any) {
-        const { ctx, scales: { x, y } } = chart;
-        if (!x || !y) return;
+    const { ctx, scales: { x, y } } = chart;
+    if (!ctx || !x || !y) return;
 
-        const datasetCount = chart.data.datasets.length;
-        if (datasetCount === 0) return;
+    const datasetCount = chart.data.datasets?.length || 0;
+    if (datasetCount === 0) return;
 
-        const labelsCount = chart.data.labels?.length || 0;
-        const currencySymbol = inBarLabels.currency || currency || '₹';
+    const labelsCount = chart.data.labels?.length || 0;
+    const currencySymbol = config.currency || '₹';
 
-        for (let i = 0; i < labelsCount; i++) {
-          const rawVal = inBarLabels.values[i];
-          if (rawVal == null || rawVal === 0) continue;
+    for (let i = 0; i < labelsCount; i++) {
+      const rawVal = config.values[i];
+      if (rawVal == null || rawVal === 0) continue;
 
-          let barX = 0;
-          let barWidth = 0;
-          let found = false;
-          let topY = y.bottom;
-          let baseY = y.bottom;
+      let barX = 0;
+      let barWidth = 0;
+      let found = false;
+      let topY = y.bottom;
+      let baseY = y.bottom;
 
-          for (let d = 0; d < datasetCount; d++) {
-            const meta = chart.getDatasetMeta(d);
-            if (!meta || meta.hidden) continue;
-            const el = meta.data[i];
-            if (!el) continue;
+      for (let d = 0; d < datasetCount; d++) {
+        const meta = chart.getDatasetMeta(d);
+        if (!meta || meta.hidden) continue;
+        const el = meta.data[i];
+        if (!el) continue;
 
-            if (!found) {
-              barX = el.x;
-              barWidth = el.width || 0;
-              found = true;
-            }
-
-            if (typeof el.y === 'number' && !isNaN(el.y)) {
-              topY = Math.min(topY, el.y);
-            }
-            if (typeof el.base === 'number' && !isNaN(el.base)) {
-              baseY = Math.max(baseY, el.base);
-            }
-          }
-
-          if (!found || barWidth < 6) continue;
-
-          const barHeight = baseY - topY;
-          if (barHeight < 14) continue;
-
-          let text = '';
-          if (inBarLabels.type === 'cost') {
-            const num = Number(rawVal);
-            const full = `${currencySymbol}${num.toLocaleString('en-IN')}`;
-
-            ctx.save();
-            ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-            const fullW = ctx.measureText(full).width;
-
-            if (fullW <= barHeight - 6) {
-              text = full;
-            } else {
-              if (num >= 10000000) {
-                text = `${currencySymbol}${(num / 10000000).toFixed(1).replace(/\.0$/, '')}Cr`;
-              } else if (num >= 100000) {
-                text = `${currencySymbol}${(num / 100000).toFixed(1).replace(/\.0$/, '')}L`;
-              } else if (num >= 1000) {
-                text = `${currencySymbol}${(num / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-              } else {
-                text = `${currencySymbol}${num}`;
-              }
-            }
-            ctx.restore();
-          } else {
-            text = rawVal.toString();
-          }
-
-          if (!text) continue;
-
-          ctx.save();
-          const fontSize = Math.min(10, Math.max(8, Math.floor(barWidth * 0.7)));
-          ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
-
-          const textWidth = ctx.measureText(text).width;
-          if (textWidth > barHeight - 4) {
-            ctx.restore();
-            continue;
-          }
-
-          const centerY = (topY + baseY) / 2;
-
-          ctx.translate(barX, centerY);
-          ctx.rotate(-Math.PI / 2);
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          // Dark outline for contrast
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-          ctx.lineWidth = 2.5;
-          ctx.lineJoin = 'round';
-          ctx.strokeText(text, 0, 0);
-
-          // White text
-          ctx.fillStyle = '#ffffff';
-          ctx.fillText(text, 0, 0);
-
-          ctx.restore();
+        if (!found) {
+          barX = el.x;
+          barWidth = el.width || 0;
+          found = true;
         }
-      },
-    };
-  }, [inBarLabels, currency]);
+
+        if (typeof el.y === 'number' && !isNaN(el.y)) {
+          topY = Math.min(topY, el.y);
+        }
+        if (typeof el.base === 'number' && !isNaN(el.base)) {
+          baseY = Math.max(baseY, el.base);
+        }
+      }
+
+      if (!found || barWidth < 7) continue;
+
+      const barHeight = baseY - topY;
+      if (barHeight < 14) continue;
+
+      const fontSize = Math.min(9.5, Math.max(8, barWidth - 1));
+      const fontStr = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+      let text = '';
+      if (config.type === 'cost') {
+        const num = Number(rawVal);
+        const full = `${currencySymbol}${num.toLocaleString('en-IN')}`;
+
+        let compact = '';
+        if (num >= 10000000) {
+          compact = `${currencySymbol}${(num / 10000000).toFixed(1).replace(/\.0$/, '')}Cr`;
+        } else if (num >= 100000) {
+          compact = `${currencySymbol}${(num / 100000).toFixed(1).replace(/\.0$/, '')}L`;
+        } else if (num >= 1000) {
+          compact = `${currencySymbol}${(num / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+        } else {
+          compact = `${currencySymbol}${num}`;
+        }
+
+        ctx.save();
+        ctx.font = fontStr;
+        const fullW = ctx.measureText(full).width;
+        if (fullW + 12 <= barHeight) {
+          text = full;
+        } else {
+          text = compact;
+        }
+        ctx.restore();
+      } else {
+        text = rawVal.toString();
+      }
+
+      if (!text) continue;
+
+      ctx.save();
+      ctx.font = fontStr;
+      const textWidth = ctx.measureText(text).width;
+      if (textWidth + 12 > barHeight) {
+        ctx.restore();
+        continue;
+      }
+
+      // Anchor near the bottom baseline of the bar
+      const startY = baseY - 5;
+      const pillH = Math.min(barWidth - 2, fontSize + 4);
+      const pillLen = textWidth + 6;
+      const r = Math.min(3, pillH / 2);
+
+      // Rotate -90deg so +X points upwards towards the top of the bar
+      ctx.translate(barX, startY);
+      ctx.rotate(-Math.PI / 2);
+
+      // Draw subtle modern translucent pill backdrop for contrast without ugly letter outline
+      const isDark = config.isDarkMode ?? false;
+      ctx.fillStyle = isDark ? 'rgba(0, 0, 0, 0.50)' : 'rgba(15, 23, 42, 0.42)';
+      drawRoundedRect(ctx, 1, -pillH / 2, pillLen, pillH, r);
+
+      // Draw clean, crisp white text aligned to left (starting from the bottom of the bar)
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, 4, 0);
+
+      ctx.restore();
+    }
+  },
+};
 
   const datasets = series
     ? series.map((s, i) => {
@@ -350,6 +386,7 @@ export default function Chart({
   const options: any = {
     responsive: true,
     plugins: {
+      inBarLabels: inBarLabels ? { ...inBarLabels, currency: inBarLabels.currency || currency, isDarkMode } : undefined,
       legend: {
         display: showLegend ?? (isDualAxis || stacked || (series && series.length > 1)),
         position: legendPosition,
@@ -459,5 +496,5 @@ export default function Chart({
   if (type === 'line') {
     return <div style={{ height }}><Line data={chartData} options={options} /></div>;
   }
-  return <div style={{ height }}><Bar data={chartData} options={options} plugins={inBarLabelPlugin ? [inBarLabelPlugin] : []} /></div>;
+  return <div style={{ height }}><Bar data={chartData} options={options} plugins={[inBarLabelPlugin]} /></div>;
 } 

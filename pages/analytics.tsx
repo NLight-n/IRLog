@@ -488,6 +488,7 @@ export default function AnalyticsPage() {
               ) : (
                 daily.data && (
                   <Chart
+                    key={`daily-${dailyMetric}-${dailyOffset}-${dailyModality}`}
                     type="bar"
                     labels={daily.data.labels}
                     series={
