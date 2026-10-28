@@ -101,7 +101,10 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     return timeStr;
   }
 
+  const tariffAutoFilledRef = useRef(false);
+
   useEffect(() => {
+    tariffAutoFilledRef.current = false;
     if (initialData) {
       setForm({ ...defaultForm, ...initialData });
       setIsEditing(false);
@@ -114,6 +117,12 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
       setRefPhysicianSearch('');
     }
   }, [initialData]);
+
+  useEffect(() => {
+    if (!open) {
+      tariffAutoFilledRef.current = false;
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -181,6 +190,42 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     return { cost: '', isMatrix: false, matchText: '' };
   };
 
+  // Auto-fill tariff when procedureName is populated (e.g. copied from Worklist) and cost is empty
+  useEffect(() => {
+    if (!open) return;
+    if (tariffAutoFilledRef.current) return;
+    if (!procedures || procedures.length === 0) return;
+    if (!form?.procedureName) return;
+    // Don't auto-overwrite existing saved procedure logs
+    if (initialData?.procedureID || form?.procedureID) return;
+    // If cost was already explicitly provided in initialData, do not overwrite
+    if (initialData?.procedureCost !== undefined && initialData?.procedureCost !== null && initialData?.procedureCost !== '') {
+      tariffAutoFilledRef.current = true;
+      return;
+    }
+    // If form already has cost set
+    if (form.procedureCost !== undefined && form.procedureCost !== null && form.procedureCost !== '') {
+      tariffAutoFilledRef.current = true;
+      return;
+    }
+
+    const matchedProc = procedures.find(
+      (p: any) => p.procedureName && p.procedureName.trim().toLowerCase() === form.procedureName.trim().toLowerCase()
+    );
+    if (matchedProc) {
+      const resolved = resolveRateForProcedure(matchedProc, form.modality, form.status);
+      const autoCost = resolved.cost !== '' ? resolved.cost : (matchedProc.procedureCost != null ? String(matchedProc.procedureCost) : '');
+      if (autoCost !== '') {
+        setForm((f: any) => ({
+          ...f,
+          procedureCost: autoCost,
+          procedureRef: f.procedureRef || matchedProc.proID,
+        }));
+      }
+      tariffAutoFilledRef.current = true;
+    }
+  }, [open, procedures, form?.procedureName, form?.modality, form?.status, form?.procedureCost, initialData]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     if (viewOnly && !isEditing) return;
     const { name, value } = e.target;
@@ -188,14 +233,23 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
     if (name === 'modality' || name === 'status') {
       const nextModality = name === 'modality' ? value : form?.modality;
       const nextStatus = name === 'status' ? value : form?.status;
-      const matchedProc = procedures.find(p => p.procedureName && form?.procedureName && p.procedureName.toLowerCase() === form.procedureName.toLowerCase());
-      if (matchedProc && matchedProc.customCosts) {
+      const matchedProc = procedures.find(
+        (p: any) => p.procedureName && form?.procedureName && p.procedureName.trim().toLowerCase() === form.procedureName.trim().toLowerCase()
+      );
+      if (matchedProc) {
         const resolved = resolveRateForProcedure(matchedProc, nextModality, nextStatus);
         if (resolved.isMatrix) {
           setForm((f: any) => ({
             ...f,
             [name]: value,
             procedureCost: resolved.cost,
+          }));
+          return;
+        } else if (matchedProc.procedureCost != null && matchedProc.procedureCost !== '') {
+          setForm((f: any) => ({
+            ...f,
+            [name]: value,
+            procedureCost: String(matchedProc.procedureCost),
           }));
           return;
         }
