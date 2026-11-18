@@ -61,7 +61,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         create: data.doneBy.map((physicianID: number) => ({ physicianID }))
       };
     }
-    if (typeof data.refPhysician === 'string') data.refPhysician = parseInt(data.refPhysician) || null;
+    if (typeof data.refPhysician === 'string') {
+      const trimmed = data.refPhysician.trim();
+      const num = parseInt(trimmed, 10);
+      if (!isNaN(num) && String(num) === trimmed) {
+        data.refPhysician = num;
+      } else if (trimmed) {
+        const existing = await prisma.physician.findFirst({
+          where: { name: { equals: trimmed, mode: 'insensitive' } },
+        });
+        if (existing) {
+          data.refPhysician = existing.physicianID;
+        } else {
+          const createdPhys = await prisma.physician.create({
+            data: { name: trimmed, role: 'referrer', credentials: '', department: 'General' },
+          });
+          data.refPhysician = createdPhys.physicianID;
+        }
+      } else {
+        data.refPhysician = null;
+      }
+    }
     const created = await prisma.procedureLog.create({
       data: {
         ...data,

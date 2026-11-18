@@ -6,10 +6,12 @@ import { ColumnContext } from '../lib/columnContext';
 import { useAppSettings } from './_app';
 import { useRouter } from 'next/router';
 import BottomSheetModal from '../components/common/BottomSheetModal';
+import RequisitionSettingsTab from '../components/settings/RequisitionSettingsTab';
 
 const TABS = [
   { label: 'Physicians', value: 'physicians' },
   { label: 'Procedures', value: 'procedures' },
+  { label: 'Requisitions', value: 'requisitions' },
   { label: 'Data Log', value: 'datalog' },
   { label: 'About', value: 'about' },
   // Admin tab will be conditionally rendered
@@ -246,6 +248,12 @@ export default function SettingsPage() {
   const router = useRouter();
   const navbarRef = useRef<HTMLDivElement>(null);
   const [navbarHeight, setNavbarHeight] = useState(0);
+
+  useEffect(() => {
+    if ((session?.user as any)?.permissions?.requisitionOnly) {
+      router.replace('/requisitions');
+    }
+  }, [session, router]);
   useEffect(() => {
     let frame: number;
     let lastHeight = 0;
@@ -331,6 +339,7 @@ export default function SettingsPage() {
             {/* General Settings removed */}
             {tab === 'physicians' && <PhysicianManagement />}
             {tab === 'procedures' && <ProcedureManagement />}
+            {tab === 'requisitions' && <RequisitionSettingsTab />}
             {tab === 'datalog' && <DataLog navbarHeight={navbarHeight} />}
             {tab === 'about' && (
               <div>
@@ -514,9 +523,26 @@ function PhysicianManagement() {
     }
   }
 
-  const irs = physicians.filter((p: any) => p.role === 'IR');
+  // Filter state
+  const [physicianSearchFilter, setPhysicianSearchFilter] = React.useState('');
+
+  const filterPhysician = (p: any) => {
+    if (!physicianSearchFilter.trim()) return true;
+    const q = physicianSearchFilter.toLowerCase().trim();
+    return (
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      (p.credentials && p.credentials.toLowerCase().includes(q)) ||
+      (p.department && p.department.toLowerCase().includes(q)) ||
+      (p.role && p.role.toLowerCase().includes(q))
+    );
+  };
+
+  const irs = physicians.filter((p: any) => p.role === 'IR').filter(filterPhysician);
   // Sort referring physicians alphabetically by name
-  const referrers = physicians.filter((p: any) => p.role === 'Referrer').sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+  const referrers = physicians
+    .filter((p: any) => p.role === 'Referrer')
+    .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
+    .filter(filterPhysician);
 
   return (
     <div>
@@ -527,6 +553,27 @@ function PhysicianManagement() {
           <button onClick={handleAdd} className="btn btn-primary">
             + Add Physician
           </button>
+        )}
+      </div>
+
+      {/* Filter Bar */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 12, paddingLeft: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 260, flex: '1 1 260px', maxWidth: 400 }}>
+          <label className="block text-sm font-medium mb-1">Search Physicians</label>
+          <input
+            className="form-input w-full"
+            type="text"
+            placeholder="Search by name, credentials, or department..."
+            value={physicianSearchFilter}
+            onChange={e => setPhysicianSearchFilter(e.target.value)}
+          />
+        </div>
+        {physicianSearchFilter && (
+          <div style={{ minWidth: 120 }}>
+            <button className="btn btn-secondary" onClick={() => setPhysicianSearchFilter('')}>
+              Clear Search
+            </button>
+          </div>
         )}
       </div>
 
@@ -584,7 +631,7 @@ function PhysicianManagement() {
                   </table>
                   {irs.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      No interventional radiologists found.
+                      No interventional radiologists found{physicianSearchFilter ? ` matching "${physicianSearchFilter}"` : ''}.
                     </div>
                   )}
                 </div>
@@ -633,7 +680,7 @@ function PhysicianManagement() {
                   </table>
                   {referrers.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      No referring physicians found.
+                      No referring physicians found{physicianSearchFilter ? ` matching "${physicianSearchFilter}"` : ''}.
                     </div>
                   )}
                 </div>
@@ -2259,6 +2306,7 @@ function UserManagement({ navbarHeight = 0 }: { navbarHeight?: number }) {
                                   'createProcedureLog',
                                   'editProcedureLog',
                                   'editApptCard',
+                                  'requisitionOnly',
                                   'editSettings',
                                   'manageUsers',
                                 ].includes(k) && v === true
@@ -2327,6 +2375,7 @@ function UserModal({ open, onClose, onSave, initialData, navbarHeight = 0 }: any
       createProcedureLog: false,
       editProcedureLog: false,
       editApptCard: false,
+      requisitionOnly: false,
       editSettings: false,
       manageUsers: false,
       ...permissionsObj,
@@ -2349,6 +2398,7 @@ function UserModal({ open, onClose, onSave, initialData, navbarHeight = 0 }: any
           createProcedureLog: false,
           editProcedureLog: false,
           editApptCard: false,
+          requisitionOnly: false,
           editSettings: false,
           manageUsers: false,
           ...permissionsObj,
@@ -2496,6 +2546,16 @@ function UserModal({ open, onClose, onSave, initialData, navbarHeight = 0 }: any
                     className="rounded"
                   />
                   <span>Edit Appointments (Worklist)</span>
+                </label>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="perm_requisitionOnly"
+                    checked={form.permissions.requisitionOnly}
+                    onChange={handleChange}
+                    className="rounded"
+                  />
+                  <span>Requisition Only (Restricted to Procedure Requests)</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input

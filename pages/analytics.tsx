@@ -3,8 +3,8 @@ import NavBar from '../components/layout/NavBar';
 import { useSession } from 'next-auth/react';
 import { useTheme } from '../lib/theme/ThemeContext';
 import { useAppSettings } from './_app';
-import Chart from '../components/common/Chart';
 import { useRouter } from 'next/router';
+import Chart from '../components/common/Chart';
 import WormChartCard from '../components/analytics/WormChartCard';
 import YearlyWormChartCard from '../components/analytics/YearlyWormChartCard';
 
@@ -43,9 +43,16 @@ function useAnalyticsData(type: string, params: Record<string, string | undefine
 }
 
 export default function AnalyticsPage() {
+  const router = useRouter();
   const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
   const { appHeading, appSubheading, appLogo } = useAppSettings();
+
+  useEffect(() => {
+    if ((session?.user as any)?.permissions?.requisitionOnly) {
+      router.replace('/requisitions');
+    }
+  }, [session, router]);
 
   // App currency setting
   const [currency, setCurrency] = useState('$');
@@ -130,7 +137,6 @@ export default function AnalyticsPage() {
   const modalityTrends = useAnalyticsData('modality', { dateFrom: modalityDateFrom, dateTo: modalityDateTo });
   const physician = useAnalyticsData('physician', { dateFrom: physicianDateFrom, dateTo: physicianDateTo });
 
-  const router = useRouter();
   const navbarRef = useRef<HTMLDivElement>(null);
   const [navbarHeight, setNavbarHeight] = useState(0);
   useEffect(() => {

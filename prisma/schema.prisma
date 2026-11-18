@@ -35,6 +35,8 @@ model User {
   workItemsUpdated WorkItem[] @relation("WorkItemUpdatedBy")
   authenticators   Authenticator[]
   pushSubscriptions PushSubscription[]
+  requestsCreated ProcedureRequest[] @relation("RequestCreatedBy")
+  requestsUpdated ProcedureRequest[] @relation("RequestUpdatedBy")
 }
 
 model Authenticator {
@@ -68,6 +70,7 @@ model Permission {
   editSettings       Boolean @default(false)
   manageUsers        Boolean @default(false)
   editApptCard       Boolean @default(false)
+  requisitionOnly    Boolean @default(false)
   timestamp         DateTime @default(now())
 }
 
@@ -125,6 +128,7 @@ model WorkItem {
   createdById      Int?
   updatedBy        User?     @relation("WorkItemUpdatedBy", fields: [updatedById], references: [userID])
   updatedById      Int?
+  procedureRequest ProcedureRequest?
 }
 
 model Physician {
@@ -211,6 +215,11 @@ model SystemSettings {
   weeklyHoliday   String  @default("Sunday")
   appLogoData     Bytes?  // Binary image data stored directly in DB
   appLogoMimeType String? // MIME type of the image (e.g., "image/png")
+  requisitionProcedures Json? // Array of strings e.g. ["Biopsy", "Pigtail", ...]
+  requisitionSamples    Json? // Array of strings e.g. ["Routine fluid analysis", ...]
+  requisitionOrders     Json? // Map of procedure name -> array of order strings e.g. { "Biopsy": ["Order 1", ...] }
+  requisitionWards        Json? // Array of strings e.g. ["Ward 4B", "ICU", "CCU", ...]
+  requisitionDesignations Json? // Array of strings e.g. ["Staff Nurse", "DMO", "CMO", "Consultant", ...]
 }
 
 model Holiday {
@@ -220,4 +229,40 @@ model Holiday {
   type      String   @default("Festival") // Festival | Personal
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ProcedureRequest {
+  id                   Int       @id @default(autoincrement())
+  patientName          String
+  patientAge           Int?
+  patientSex           String?
+  hospitalID           String
+  patientType          String    @default("IP") // IP | OP
+  ward                 String?
+  procedure            String    // Biopsy | Pigtail | Aspiration-diagnostic | Aspiration-therapeutic | Others
+  otherProcedure       String?
+  fromWhere            String    // Anatomical site / target lesion (e.g. liver abscess, lung mass)
+  samplesAnalysis      String[]  // Routine fluid analysis, Culture & Sensitivity, GeneXpert, etc.
+  otherSamples         String?
+  genericOrders        Json?     // Array of generic order strings snapshot
+  requesterDesignation String?   // Staff Nurse | DMO | CMO | Consultant
+  requesterName        String?
+  requesterContact     String?
+  urgency              String?   @default("Routine") // Routine | Urgent | Emergency
+  clinicalNotes        String?
+  referringConsultant  String?
+  modality             String?
+  status               String    @default("Submitted") // Submitted | Accepted | Done | Cancelled | NotDone
+  scheduledDate        DateTime?
+  scheduledTime        String?
+  notDoneReason        String?
+  cancelledReason      String?
+  workItemId           Int?      @unique
+  workItem             WorkItem? @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  createdById          Int?
+  createdBy            User?     @relation("RequestCreatedBy", fields: [createdById], references: [userID])
+  updatedById          Int?
+  updatedBy            User?     @relation("RequestUpdatedBy", fields: [updatedById], references: [userID])
 }

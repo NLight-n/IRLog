@@ -7,6 +7,7 @@ const PERMISSIONS = [
   { key: 'createProcedureLog', label: 'Create Procedure Log' },
   { key: 'editProcedureLog', label: 'Edit Procedure Log' },
   { key: 'editApptCard', label: 'Edit Appointments (Worklist)' },
+  { key: 'requisitionOnly', label: 'Requisition Only (Restricted to Procedure Requests)' },
   { key: 'editSettings', label: 'Edit Settings' },
   { key: 'manageUsers', label: 'Manage Users' },
 ];

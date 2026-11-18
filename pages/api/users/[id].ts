@@ -60,6 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         editSettings,
         manageUsers,
         editApptCard,
+        requisitionOnly,
         timestamp
       } = permissions;
       await prisma.permission.updateMany({
@@ -71,6 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           editSettings,
           manageUsers,
           editApptCard,
+          requisitionOnly,
           timestamp
         }
       });

@@ -66,7 +66,7 @@
   --color-card-border-dark: #3f3f46;
   /* Lighter border for dark mode */
   --color-today-bg: #eff6ff;
-  /* Soft light blue tint for Today column */
+  /* Today column background */
   --color-drag-over-bg: #dbeafe;
 }
 
@@ -87,7 +87,7 @@
   --color-accent-hover: #2563eb;
   --color-accent-light: #1e293b;
   --color-today-bg: #1e293b;
-  /* Darker navy blue background for Today column in dark mode */
+  /* Slightly lighter dark grey background for Today column in dark mode */
   --color-drag-over-bg: #172554;
   --color-success: #22d3ee;
   --color-warning: #fbbf24;
@@ -1851,20 +1851,23 @@ html {
 
 /* Expanded section slide-in animation */
 .appt-card-expanded {
-  animation: apptCardExpand 0.2s ease-out;
+  animation: apptCardExpand 0.22s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  overflow: hidden;
 }
 
 @keyframes apptCardExpand {
   from {
     opacity: 0;
     max-height: 0;
+    transform: translateY(-3px);
     margin-top: 0;
     padding-top: 0;
   }
 
   to {
     opacity: 1;
-    max-height: 200px;
+    max-height: 480px;
+    transform: translateY(0);
     margin-top: 6px;
     padding-top: 6px;
   }
@@ -1874,5 +1877,142 @@ html {
 @media (hover: none) and (pointer: coarse) {
   .appt-card {
     -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Procedure request floating popover on hover in worklist */
+@keyframes reqPopoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.req-hover-popover {
+  animation: reqPopoverFadeIn 0.16s ease-out forwards;
+}
+
+.dark .req-hover-popover {
+  background-color: #1e293b !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55) !important;
+  color: #f1f5f9 !important;
+}
+
+/* ========================================================================= */
+/* REQUISITION MANAGEMENT LAYOUT                                             */
+/* Desktop: 1/2 Form, 1/4 Active, 1/4 Inactive                              */
+/* Mobile: Collapsible Form button + 2-column Active/Inactive below         */
+/* ========================================================================= */
+
+.requisition-main-container {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 16px !important;
+  width: 100% !important;
+  height: calc(100vh - 145px) !important;
+  min-height: 600px !important;
+}
+
+.requisition-col-form {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--color-gray-300) !important;
+  background-color: var(--color-white) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden !important;
+}
+
+.requisition-columns-wrapper {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 16px !important;
+  height: 100% !important;
+  min-width: 0 !important;
+}
+
+.requisition-col-active {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--color-accent) !important;
+  background-color: var(--color-white) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden !important;
+}
+
+.dark .requisition-col-active {
+  background-color: var(--color-today-bg, #1e293b) !important;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+
+.requisition-col-inactive {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--color-gray-300) !important;
+  background-color: var(--color-white) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden !important;
+}
+
+/* Mobile Toggle button: hidden on desktop */
+.requisition-mobile-toggle-wrapper {
+  display: none !important;
+}
+
+/* Mobile View (<= 768px) */
+@media (max-width: 768px) {
+  .requisition-mobile-toggle-wrapper {
+    display: block !important;
+    margin-bottom: 10px !important;
+  }
+
+  .requisition-main-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  /* When collapsed on mobile, hide the form */
+  .requisition-col-form.mobile-collapsed {
+    display: none !important;
+  }
+
+  /* When expanded on mobile, form takes full width */
+  .requisition-col-form {
+    width: 100% !important;
+    max-height: 80vh !important;
+    min-height: 480px !important;
+  }
+
+  /* Active & Inactive columns wrapper sits below the button/form, split into 2 equal columns */
+  .requisition-columns-wrapper {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .requisition-col-active,
+  .requisition-col-inactive {
+    height: calc(100vh - 210px) !important;
+    min-height: 440px !important;
+    max-height: 68vh !important;
   }
 }

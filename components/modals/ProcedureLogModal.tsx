@@ -109,7 +109,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
       setForm({ ...defaultForm, ...initialData });
       setIsEditing(false);
       setProcedureSearch('');
-      setRefPhysicianSearch('');
+      setRefPhysicianSearch(initialData.refPhysician ? String(initialData.refPhysician) : '');
     } else {
       setForm({ ...defaultForm, procedureDate: getCurrentDate(), procedureTime: getCurrentTime() });
       setIsEditing(true);
@@ -148,6 +148,28 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
         .catch(() => setPhysicians([]));
     }
   }, [open]);
+
+  // Sync Referring Physician from initialData when physicians list is loaded or updated
+  useEffect(() => {
+    if (!initialData?.refPhysician || physicians.length === 0) return;
+    const refVal = initialData.refPhysician;
+    if (typeof refVal === 'string' && isNaN(Number(refVal))) {
+      const match = physicians.find((p: any) => p.name.toLowerCase().trim() === refVal.toLowerCase().trim());
+      if (match) {
+        setForm((f: any) => ({ ...f, refPhysician: match.physicianID }));
+        setRefPhysicianSearch(match.name);
+      } else {
+        setForm((f: any) => ({ ...f, refPhysician: refVal }));
+        setRefPhysicianSearch(refVal);
+      }
+    } else {
+      const numId = Number(refVal);
+      const match = physicians.find((p: any) => p.physicianID === numId);
+      if (match) {
+        setRefPhysicianSearch(match.name);
+      }
+    }
+  }, [initialData, physicians]);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -803,7 +825,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
               <label className="form-label">Referring Physician</label>
               {(viewOnly && !isEditing) ? (
                 <div className="form-input bg-gray-50 min-h-[2.5rem] flex items-center">
-                  {referrerPhysicians.find((p: any) => p.physicianID === form?.refPhysician)?.name || '-'}
+                  {referrerPhysicians.find((p: any) => p.physicianID === form?.refPhysician)?.name || (typeof form?.refPhysician === 'string' ? form.refPhysician : '-')}
                 </div>
               ) : (
                 <>
@@ -812,7 +834,7 @@ export default function ProcedureLogModal({ open, onClose, onSave, onDelete, ini
                     type="text"
                     className="form-input"
                     placeholder="Search physician..."
-                    value={refPhysicianSearch !== '' ? refPhysicianSearch : (referrerPhysicians.find((p: any) => p.physicianID === form?.refPhysician)?.name || '')}
+                    value={refPhysicianSearch !== '' ? refPhysicianSearch : (referrerPhysicians.find((p: any) => p.physicianID === form?.refPhysician)?.name || (typeof form?.refPhysician === 'string' ? form.refPhysician : ''))}
                     onFocus={() => setShowRefPhysicianDropdown(true)}
                     onChange={e => {
                       setRefPhysicianSearch(e.target.value);

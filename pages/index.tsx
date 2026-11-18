@@ -126,6 +126,10 @@ function ProcedureLogPage() {
       router.replace('/login');
       return;
     }
+    if ((session.user as any)?.permissions?.requisitionOnly) {
+      router.replace('/requisitions');
+      return;
+    }
     fetchProcedures();
     fetchFilterOptions();
     fetchDropdownData();

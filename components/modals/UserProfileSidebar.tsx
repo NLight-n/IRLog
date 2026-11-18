@@ -276,6 +276,7 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
   const accentText = getContrastColor(accentBg);
   const themeText = theme === 'dark' ? '#fff' : '#18181b';
   const borderColor = theme === 'dark' ? '#23272f' : '#e5e5e5';
+  const isRequisitionOnly = !!((session?.user as any)?.permissions?.requisitionOnly || profile?.permissions?.[0]?.requisitionOnly);
 
   return (
     <div
@@ -297,6 +298,44 @@ const UserProfileSidebar: React.FC<UserProfileSidebarProps> = ({ open, onClose, 
             <div className="text-center text-gray-500">Not logged in.</div>
           ) : !profile ? (
             <div className="text-center text-gray-500">Loading...</div>
+          ) : isRequisitionOnly ? (
+            <>
+              {/* Requisition Staff Profile Card */}
+              <div className="card">
+                <div className="card-body">
+                  <h3 className="text-lg font-semibold mb-2">Requisition Portal Profile</h3>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    <div>User: <strong className="text-black dark:text-white">{form.username || session.user?.name}</strong></div>
+                    {profile.role && <div className="text-xs text-gray-500 mt-1">Role: {profile.role}</div>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Theme & Accent Color Card */}
+              <div className="card">
+                <div className="card-body">
+                  <h3 className="text-lg font-semibold mb-4">Theme & Accent Color</h3>
+                  <div className="form-group mb-4">
+                    <label className="form-label">Theme</label>
+                    <select value={formTheme} onChange={handleThemeChange} className="form-select">
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
+                  </div>
+                  <div className="form-group mb-4">
+                    <label className="form-label">Accent Color</label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <HexColorPicker color={formAccentColor} onChange={handleAccentColorChange} style={{ width: 180, height: 180 }} />
+                      <div className="flex flex-col items-center ml-4">
+                        <span className="mb-2">Current</span>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: formAccentColor, border: '2px solid #ccc' }} />
+                        <span className="mt-2 text-xs">{formAccentColor}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <>
               {/* Profile Info Card */}

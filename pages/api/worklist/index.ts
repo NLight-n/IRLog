@@ -11,6 +11,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET') {
     const items = await prisma.workItem.findMany({
+      include: {
+        procedureRequest: { select: { id: true, status: true, referringConsultant: true } },
+      },
       orderBy: [
         { dateScheduled: 'asc' },
         { displayOrder: 'asc' },

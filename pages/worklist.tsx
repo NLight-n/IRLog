@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import NavBar from '../components/layout/NavBar';
 import * as XLSX from 'xlsx';
-import { FiClock, FiPlus, FiEdit2, FiCheckCircle, FiXCircle, FiChevronLeft, FiChevronRight, FiSearch, FiSlash, FiRotateCcw, FiMoreVertical, FiCalendar, FiRefreshCw, FiDownload, FiPrinter, FiCopy, FiShare2, FiCheck } from 'react-icons/fi';
+import { FiClock, FiPlus, FiEdit2, FiCheckCircle, FiXCircle, FiChevronLeft, FiChevronRight, FiSearch, FiSlash, FiRotateCcw, FiMoreVertical, FiCalendar, FiRefreshCw, FiDownload, FiPrinter, FiCopy, FiShare2, FiCheck, FiFileText, FiChevronDown, FiChevronUp, FiCheckSquare } from 'react-icons/fi';
+import { DEFAULT_REQUISITION_ORDERS } from './api/settings/index';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useAppSettings } from './_app';
@@ -29,6 +31,9 @@ type AppointmentItem = {
   dateScheduled?: string | null;
   notes?: string | null;
   dateAdded?: string | null;
+  procedureRequestId?: number | null;
+  procedureRequest?: { id: number; status: string; referringConsultant?: string | null } | null;
+  referringConsultant?: string | null;
 };
 
 type HolidayItem = {
@@ -352,6 +357,68 @@ export default function AppointmentPage() {
   const [showProcedureLogModal, setShowProcedureLogModal] = useState(false);
   const [procedureLogInitialData, setProcedureLogInitialData] = useState<any>(null);
 
+  // Active Submitted Procedure Requests State
+  const [submittedRequests, setSubmittedRequests] = useState<any[]>([]);
+  const [hoveredReqPopover, setHoveredReqPopover] = useState<{
+    req: any;
+    rect: DOMRect;
+  } | null>(null);
+  const popoverCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [genericOrdersMap, setGenericOrdersMap] = useState<Record<string, string[]>>(DEFAULT_REQUISITION_ORDERS);
+
+  // Modality Selection Modal state when dragging requisition card to a day
+  const [modalityPrompt, setModalityPrompt] = useState<{
+    isOpen: boolean;
+    reqId: number;
+    targetReq: any;
+    destDateKey: string;
+    destIndex: number;
+    modality: string;
+    customModality: string;
+    appointmentTime: string;
+  } | null>(null);
+
+  const loadSubmittedRequests = useCallback(async () => {
+    try {
+      const [resReq, resSettings] = await Promise.all([
+        fetch('/api/requisitions?status=Submitted'),
+        fetch('/api/settings'),
+      ]);
+      if (resReq.ok) {
+        const data = await resReq.json();
+        setSubmittedRequests(data);
+      }
+      if (resSettings.ok) {
+        const settingsData = await resSettings.json();
+        if (settingsData.requisitionOrders) {
+          setGenericOrdersMap(settingsData.requisitionOrders);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load submitted requests:', err);
+    }
+  }, []);
+
+  // Cleanup popover timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (popoverCloseTimeoutRef.current) {
+        clearTimeout(popoverCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Dismiss floating popover on scroll so it never detaches
+  useEffect(() => {
+    const handleDismissPopover = () => {
+      if (hoveredReqPopover) {
+        setHoveredReqPopover(null);
+      }
+    };
+    window.addEventListener('scroll', handleDismissPopover, true);
+    return () => window.removeEventListener('scroll', handleDismissPopover, true);
+  }, [hoveredReqPopover]);
+
   // Dynamic NavBar Height Measurement
   const navbarRef = useRef<HTMLDivElement>(null);
   const [navbarHeight, setNavbarHeight] = useState(0);
@@ -414,6 +481,9 @@ export default function AppointmentPage() {
         dateScheduled: p.dateScheduled ? p.dateScheduled : null,
         notes: p.notes || null,
         dateAdded: p.dateAdded || null,
+        procedureRequestId: p.procedureRequest?.id || null,
+        procedureRequest: p.procedureRequest || null,
+        referringConsultant: p.procedureRequest?.referringConsultant || p.referringConsultant || null,
       }));
       setItems(mapped);
       try {
@@ -476,10 +546,15 @@ export default function AppointmentPage() {
       return;
     }
     const perms = (session.user as any)?.permissions || {};
+    if (perms.requisitionOnly) {
+      router.replace('/requisitions');
+      return;
+    }
     setCanEdit(!!perms.editApptCard);
 
     loadAppointments();
     loadHolidays();
+    loadSubmittedRequests();
 
     // Fetch settings for weekly holiday
     fetch('/api/settings')
@@ -502,6 +577,14 @@ export default function AppointmentPage() {
       })
       .catch(() => { });
   }, [session, status, router]);
+
+  // Listen to requisition updates
+  useEffect(() => {
+    window.addEventListener('irlog:requisitions-updated', loadSubmittedRequests);
+    return () => {
+      window.removeEventListener('irlog:requisitions-updated', loadSubmittedRequests);
+    };
+  }, [loadSubmittedRequests]);
 
   // Click outside listener for typable procedure dropdown & search container
   useEffect(() => {
@@ -705,10 +788,121 @@ export default function AppointmentPage() {
     setStartDate(today);
   };
 
+  // Confirm Scheduling Requisition with Modality Prompt
+  const handleConfirmScheduleWithModality = async () => {
+    if (!modalityPrompt) return;
+    const { reqId, targetReq, destDateKey, destIndex, modality, customModality, appointmentTime } = modalityPrompt;
+    const chosenModality = modality === 'Other' ? customModality.trim() : modality;
+
+    // Close modal
+    setModalityPrompt(null);
+
+    // Optimistically remove from submitted requests
+    setSubmittedRequests(prev => prev.filter(r => r.id !== reqId));
+
+    try {
+      const res = await fetch(`/api/requisitions/${reqId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dateScheduled: destDateKey,
+          displayOrder: destIndex,
+          modality: chosenModality || null,
+          appointmentTime: appointmentTime || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to accept request');
+      const data = await res.json();
+      const createdWorkItem = data.workItem;
+
+      const newAppt: AppointmentItem = {
+        id: createdWorkItem.id,
+        patientID: createdWorkItem.patientID,
+        patientName: createdWorkItem.patientName,
+        patientAge: createdWorkItem.patientAge,
+        patientSex: createdWorkItem.patientSex,
+        procedureName: createdWorkItem.procedureName,
+        modality: createdWorkItem.modality || null,
+        appointmentTime: createdWorkItem.appointmentTime || null,
+        patientType: createdWorkItem.patientType || null,
+        ward: createdWorkItem.ward || null,
+        status: createdWorkItem.status || 'Scheduled',
+        notDoneReason: createdWorkItem.notDoneReason || null,
+        displayOrder: destIndex,
+        dateScheduled: createdWorkItem.dateScheduled,
+        notes: createdWorkItem.notes || null,
+        dateAdded: createdWorkItem.dateAdded || null,
+        procedureRequestId: reqId,
+        procedureRequest: data.request || null,
+        referringConsultant: targetReq?.referringConsultant || data.request?.referringConsultant || null,
+      };
+
+      setItems(prev => [...prev, newAppt]);
+      refreshTodayCount();
+      showToast(`Request for ${targetReq.patientName} scheduled under [${chosenModality || 'No modality'}]!`);
+      window.dispatchEvent(new CustomEvent('irlog:requisitions-updated'));
+    } catch (err) {
+      console.error('Failed to accept procedure request:', err);
+      showToast('Error scheduling procedure request');
+      loadSubmittedRequests();
+    }
+  };
+
   // Drag and Drop Execution
   const executeDrag = async (result: DropResult) => {
     const { source, destination, draggableId } = result;
     if (!destination) return;
+
+    // 1. Dragging back into submitted-requests (Active Requests box)
+    if (destination.droppableId === 'submitted-requests') {
+      const itemId = parseInt(draggableId.replace('appt-', ''), 10);
+      const targetItem = items.find(it => it.id === itemId);
+      if (!targetItem || !targetItem.procedureRequestId) {
+        showToast('Only appointments from the requisition form can be moved back to active requests.');
+        return;
+      }
+
+      // Optimistically remove from items
+      setItems(prev => prev.filter(it => it.id !== itemId));
+
+      try {
+        const res = await fetch(`/api/requisitions/${targetItem.procedureRequestId}/revert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) throw new Error('Failed to revert request');
+
+        await loadSubmittedRequests();
+        refreshTodayCount();
+        showToast(`Request for ${targetItem.patientName} reverted back to active queue.`);
+        window.dispatchEvent(new CustomEvent('irlog:requisitions-updated'));
+      } catch (err) {
+        console.error('Failed to revert procedure request:', err);
+        showToast('Error moving appointment back to active requests');
+        loadAppointments();
+      }
+      return;
+    }
+
+    // 2. Dragging from submitted procedure requests box into a day -> Prompt Modality!
+    if (source.droppableId === 'submitted-requests') {
+      const reqId = parseInt(draggableId.replace('req-', ''), 10);
+      const targetReq = submittedRequests.find(r => r.id === reqId);
+      if (!targetReq) return;
+
+      const destDateKey = destination.droppableId;
+      setModalityPrompt({
+        isOpen: true,
+        reqId,
+        targetReq,
+        destDateKey,
+        destIndex: destination.index,
+        modality: 'USG',
+        customModality: '',
+        appointmentTime: '',
+      });
+      return;
+    }
 
     const itemId = parseInt(draggableId.replace('appt-', ''), 10);
     const sourceDateKey = source.droppableId;
@@ -773,9 +967,42 @@ export default function AppointmentPage() {
       showToast('Cannot reorder appointments while server is offline.');
       return;
     }
-    const { source, destination } = result;
+    const { source, destination, draggableId } = result;
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    // Handle dragging an appointment back into submitted-requests (active requests)
+    if (destination.droppableId === 'submitted-requests') {
+      if (source.droppableId === 'submitted-requests') return; // dropped in place
+      const itemId = parseInt(draggableId.replace('appt-', ''), 10);
+      const targetItem = items.find(it => it.id === itemId);
+      if (!targetItem || !targetItem.procedureRequestId) {
+        showToast('Only appointments from the requisition form can be moved back to active requests.');
+        return;
+      }
+      await executeDrag(result);
+      return;
+    }
+
+    // Dragging from submitted-requests into a day
+    if (source.droppableId === 'submitted-requests') {
+      const destDateKey = destination.droppableId;
+      const holiday = getHolidayForDate(destDateKey);
+      if (holiday) {
+        const targetDay = daysList.find(d => d.dateKey === destDateKey);
+        setPendingHolidayConfirm({
+          type: 'drag',
+          targetDateKey: destDateKey,
+          formattedDate: targetDay ? `${targetDay.dayName}, ${targetDay.formattedDate}` : destDateKey,
+          holidayName: holiday.name,
+          holidayType: holiday.type,
+          dragResult: result,
+        });
+        return;
+      }
+      await executeDrag(result);
+      return;
+    }
 
     const destDateKey = destination.droppableId;
     const holiday = getHolidayForDate(destDateKey);
@@ -1306,6 +1533,7 @@ export default function AppointmentPage() {
 
       // Prompt user whether to create an IRLog Register entry
       if (window.confirm(`Do you want to create an IRLog Register entry for ${item.patientName}?`)) {
+        const refDoc = updated.referringConsultant || updated.procedureRequest?.referringConsultant || item.referringConsultant || item.procedureRequest?.referringConsultant || '';
         const initialData = {
           patientID: item.patientID,
           patientName: item.patientName,
@@ -1315,6 +1543,7 @@ export default function AppointmentPage() {
           modality: item.modality || '',
           status: item.patientType || '',
           notes: item.notes || '',
+          refPhysician: refDoc,
           procedureDate: item.dateScheduled ? formatDateKey(new Date(item.dateScheduled)) : formatDateKey(new Date()),
           procedureTime: item.appointmentTime || new Date().toTimeString().slice(0, 5),
         };
@@ -1430,6 +1659,220 @@ export default function AppointmentPage() {
     } else {
       alert('Failed to save procedure log');
     }
+  };
+
+  // Floating Popover for Active Procedure Requests on Hover / Tap
+  const renderReqPopover = () => {
+    if (!hoveredReqPopover || typeof window === 'undefined' || typeof document === 'undefined' || !document.body) return null;
+    const { req, rect } = hoveredReqPopover;
+    const procName =
+      req.procedure === 'Others' && req.otherProcedure
+        ? req.otherProcedure
+        : req.procedure;
+    const cardOrders =
+      req.genericOrders ||
+      genericOrdersMap[req.procedure] ||
+      genericOrdersMap['Others'] ||
+      DEFAULT_REQUISITION_ORDERS[req.procedure] ||
+      DEFAULT_REQUISITION_ORDERS['Others'] ||
+      [];
+
+    const popupWidth = Math.min(360, window.innerWidth - 32);
+    let left = rect.left;
+    if (left + popupWidth > window.innerWidth - 16) {
+      left = Math.max(16, window.innerWidth - popupWidth - 16);
+    }
+    if (left < 16) left = 16;
+
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove = spaceAbove >= 220 || spaceAbove > spaceBelow;
+
+    return createPortal(
+      <div
+        className="req-hover-popover"
+        style={{
+          position: 'fixed',
+          left,
+          width: popupWidth,
+          zIndex: 10000,
+          background: theme === 'dark' ? '#1e293b' : 'var(--color-white)',
+          border: theme === 'dark' ? '1px solid #7c3aed' : '1px solid #c084fc',
+          borderLeft: '5px solid #8b5cf6',
+          borderRadius: 10,
+          padding: '12px 14px',
+          boxShadow: theme === 'dark'
+            ? '0 12px 30px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0,0,0,0.4)'
+            : '0 12px 30px rgba(0, 0, 0, 0.18), 0 4px 8px rgba(0, 0, 0, 0.08)',
+          pointerEvents: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          fontSize: 11.5,
+          color: 'var(--color-gray-800)',
+          overflowY: 'auto',
+          maxHeight: placeAbove
+            ? Math.min(480, spaceAbove - 16)
+            : Math.min(480, spaceBelow - 16),
+          ...(placeAbove
+            ? { bottom: window.innerHeight - rect.top + 8 }
+            : { top: rect.bottom + 8 }),
+        }}
+        onMouseEnter={() => {
+          if (popoverCloseTimeoutRef.current) {
+            clearTimeout(popoverCloseTimeoutRef.current);
+            popoverCloseTimeoutRef.current = null;
+          }
+        }}
+        onMouseLeave={() => {
+          if (popoverCloseTimeoutRef.current) {
+            clearTimeout(popoverCloseTimeoutRef.current);
+          }
+          popoverCloseTimeoutRef.current = setTimeout(() => {
+            setHoveredReqPopover(null);
+          }, 150);
+        }}
+      >
+        {/* Header: Patient Name & Status tag */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--color-gray-900)', lineHeight: 1.25 }}>
+            {req.patientName}
+          </div>
+          <span
+            style={{
+              fontSize: 9.5,
+              fontWeight: 800,
+              padding: '2px 7px',
+              borderRadius: 5,
+              background: '#f3e8ff',
+              color: '#6b21a8',
+              border: '1px solid #d8b4fe',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Submitted
+          </span>
+        </div>
+
+        {/* Row 2: Patient ID, Age/Sex, IP/OP, Ward */}
+        <div style={{ fontSize: 11, color: 'var(--color-gray-500)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 600 }}>ID: {req.hospitalID}</span>
+          {(req.patientAge != null || req.patientSex) && (
+            <span>
+              • {req.patientAge != null ? `${req.patientAge}Y` : ''}
+              {req.patientSex ? `/${req.patientSex}` : ''}
+            </span>
+          )}
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: 3,
+              background: req.patientType === 'IP' ? '#e0e7ff' : '#e5e7eb',
+              color: req.patientType === 'IP' ? '#3730a3' : '#374151',
+            }}
+          >
+            {req.patientType} {req.ward ? `(${req.ward})` : ''}
+          </span>
+        </div>
+
+        {/* Row 3: Procedure - Target Site */}
+        <div style={{ fontSize: 12, lineHeight: 1.35, paddingTop: 2, borderTop: '1px solid var(--color-gray-100)' }}>
+          <span style={{ fontWeight: 800, color: 'var(--color-accent)' }}>{procName}</span>
+          {req.fromWhere && (
+            <>
+              <span style={{ color: 'var(--color-gray-400)', margin: '0 4px' }}>-</span>
+              <span style={{ fontWeight: 600, color: 'var(--color-gray-800)' }}>{req.fromWhere}</span>
+            </>
+          )}
+        </div>
+
+        {/* Pre-Procedure Orders (Full Checklist) */}
+        {cardOrders.length > 0 && (
+          <div
+            style={{
+              padding: '7px 9px',
+              borderRadius: 6,
+              background: theme === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'var(--color-gray-50)',
+              border: '1px solid var(--color-gray-200)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              marginTop: 2,
+            }}
+          >
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <FiCheckSquare size={12} />
+              <span>Pre-Procedure Orders ({cardOrders.length}):</span>
+            </div>
+            {cardOrders.map((ord: string, i: number) => (
+              <div key={i} style={{ fontSize: 10.5, color: 'var(--color-gray-800)', display: 'flex', alignItems: 'flex-start', gap: 5, lineHeight: 1.35 }}>
+                <span style={{ fontWeight: 800, color: 'var(--color-accent)', minWidth: 15 }}>{i + 1}.</span>
+                <span>{ord}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Referring Consultant */}
+        {req.referringConsultant && (
+          <div>
+            <strong style={{ color: 'var(--color-gray-700)' }}>Ref Consultant: </strong>
+            <span style={{ color: 'var(--color-gray-900)', fontWeight: 600 }}>{req.referringConsultant}</span>
+          </div>
+        )}
+
+        {/* Samples Analysis */}
+        {req.samplesAnalysis && req.samplesAnalysis.length > 0 && (
+          <div>
+            <strong style={{ color: 'var(--color-gray-700)' }}>Samples: </strong>
+            <span style={{ color: 'var(--color-gray-900)' }}>{req.samplesAnalysis.join(', ')}</span>
+            {req.otherSamples && <span style={{ color: 'var(--color-gray-500)', fontStyle: 'italic' }}> ({req.otherSamples})</span>}
+          </div>
+        )}
+
+        {/* Requester Info */}
+        {(req.requesterDesignation || req.requesterName) && (
+          <div>
+            <strong style={{ color: 'var(--color-gray-700)' }}>Requested by: </strong>
+            <span>{[req.requesterDesignation, req.requesterName].filter(Boolean).join(' ')}</span>
+            {req.requesterContact ? <span style={{ color: 'var(--color-gray-500)' }}> ({req.requesterContact})</span> : ''}
+          </div>
+        )}
+
+        {/* Urgency */}
+        {req.urgency && (
+          <div>
+            <strong style={{ color: 'var(--color-gray-700)' }}>Urgency: </strong>
+            <span
+              style={{
+                fontWeight: 700,
+                color: req.urgency === 'Emergency' ? '#dc2626' : req.urgency === 'Urgent' ? '#d97706' : 'var(--color-gray-700)',
+              }}
+            >
+              {req.urgency}
+            </span>
+          </div>
+        )}
+
+        {/* Clinical Notes */}
+        {req.clinicalNotes && (
+          <div>
+            <strong style={{ color: 'var(--color-gray-700)' }}>Notes: </strong>
+            <span style={{ color: 'var(--color-gray-600)' }}>{req.clinicalNotes}</span>
+          </div>
+        )}
+
+        {/* Footer: Date & Drag hint */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid var(--color-gray-100)', marginTop: 2, fontSize: 10, color: 'var(--color-gray-400)' }}>
+          <span>Submitted: {new Date(req.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+          <span style={{ fontStyle: 'italic', color: 'var(--color-accent)', fontWeight: 600 }}>Drag card to schedule</span>
+        </div>
+      </div>,
+      document.body
+    );
   };
 
   if (status === 'loading' || loading) {
@@ -1708,20 +2151,22 @@ export default function AppointmentPage() {
         </div>
 
         {/* 7-Day Horizontal Equal Grid */}
-        <DragDropContext onDragEnd={onDragEnd}>
+        <DragDropContext onDragStart={() => setHoveredReqPopover(null)} onDragEnd={onDragEnd}>
           <div style={{ overflowX: 'auto', paddingBottom: 8, flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{
               display: 'grid',
               gridTemplateColumns: gridTemplateColumns,
+              gridTemplateRows: 'minmax(270px, 1fr) minmax(270px, 1fr)',
               gap: 12,
               minWidth: 'max(1120px, 100%)',
               flex: 1,
-              minHeight: 520,
+              minHeight: 640,
               alignItems: 'stretch',
               transition: 'grid-template-columns 0.3s ease',
             }}>
-              {daysList.map((day) => {
+              {daysList.map((day, dayIndex) => {
                 const dayItems = itemsByDay[day.dateKey] || [];
+                const isFirstFourDays = dayIndex < 4;
                 return (
                   <Droppable droppableId={day.dateKey} key={day.dateKey} isDropDisabled={!canEdit}>
                     {(provided, snapshot) => (
@@ -1729,6 +2174,8 @@ export default function AppointmentPage() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         style={{
+                          gridColumn: dayIndex + 1,
+                          gridRow: isFirstFourDays ? '1 / span 2' : 1,
                           position: 'relative',
                           overflow: 'hidden',
                           background: snapshot.isDraggingOver
@@ -2128,10 +2575,303 @@ export default function AppointmentPage() {
                   </Droppable>
                 );
               })}
+
+              {/* Active Submitted Procedure Requests Box (spans last 3 days, lower half) */}
+              <Droppable droppableId="submitted-requests" isDropDisabled={!canEdit}>
+                {(reqProvided, reqSnapshot) => (
+                  <div
+                    style={{
+                      gridColumn: '5 / 8',
+                      gridRow: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      background: reqSnapshot.isDraggingOver
+                        ? 'var(--color-drag-over-bg, #dbeafe)'
+                        : 'var(--color-gray-100)',
+                      border: reqSnapshot.isDraggingOver
+                        ? '2px dashed var(--color-accent)'
+                        : '2px dashed var(--color-gray-300)',
+                      borderRadius: 10,
+                      padding: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      boxShadow: reqSnapshot.isDraggingOver
+                        ? '0 2px 12px rgba(59,130,246,0.2)'
+                        : '0 1px 4px rgba(0,0,0,0.04)',
+                      transition: 'background-color 0.2s ease, border-color 0.2s ease',
+                    }}
+                  >
+                    {/* Box Header */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 8,
+                        paddingBottom: 6,
+                        borderBottom: '1px solid var(--color-gray-200)',
+                        position: 'relative',
+                        zIndex: 1,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <FiFileText size={16} style={{ color: 'var(--color-accent)' }} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-gray-900)' }}>
+                          Active Requests
+                        </span>
+                        <span
+                          style={{
+                            background: submittedRequests.length > 0 ? '#8b5cf6' : 'var(--color-gray-300)',
+                            color: '#fff',
+                            borderRadius: 10,
+                            padding: '1px 7px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {submittedRequests.length}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          onClick={() => router.push('/requisitions')}
+                          title="Manage Requisitions"
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: 'var(--color-accent)',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                          }}
+                        >
+                          All Requests &rarr;
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Droppable Container */}
+                    <div
+                      ref={reqProvided.innerRef}
+                      {...reqProvided.droppableProps}
+                      style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 8,
+                        alignContent: 'start',
+                        paddingRight: 4,
+                        position: 'relative',
+                        zIndex: 1,
+                      }}
+                    >
+                      {submittedRequests.length === 0 ? (
+                        <div
+                          style={{
+                            gridColumn: '1 / -1',
+                            padding: '28px 12px',
+                            textAlign: 'center',
+                            color: 'var(--color-gray-500)',
+                            fontSize: 12,
+                          }}
+                        >
+                          <FiFileText size={24} style={{ margin: '0 auto 8px auto', opacity: 0.4 }} />
+                          <div>No pending submitted procedure requests.</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-gray-400)', marginTop: 2 }}>
+                            New requests submitted by staff will appear here to be scheduled.
+                          </div>
+                        </div>
+                      ) : (
+                        submittedRequests.map((req, idx) => {
+                          const procName =
+                            req.procedure === 'Others' && req.otherProcedure
+                              ? req.otherProcedure
+                              : req.procedure;
+                          const cardOrders =
+                            req.genericOrders ||
+                            genericOrdersMap[req.procedure] ||
+                            genericOrdersMap['Others'] ||
+                            DEFAULT_REQUISITION_ORDERS[req.procedure] ||
+                            DEFAULT_REQUISITION_ORDERS['Others'] ||
+                            [];
+                          const isHovered = hoveredReqPopover?.req.id === req.id;
+
+                          return (
+                            <Draggable
+                              draggableId={`req-${req.id}`}
+                              index={idx}
+                              key={req.id}
+                              isDragDisabled={!canEdit}
+                            >
+                              {(dragProvided, dragSnapshot) => (
+                                <div
+                                  ref={dragProvided.innerRef}
+                                  {...dragProvided.draggableProps}
+                                  {...dragProvided.dragHandleProps}
+                                  className="appt-card"
+                                  onMouseEnter={(e) => {
+                                    if (popoverCloseTimeoutRef.current) {
+                                      clearTimeout(popoverCloseTimeoutRef.current);
+                                      popoverCloseTimeoutRef.current = null;
+                                    }
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setHoveredReqPopover({ req, rect });
+                                  }}
+                                  onMouseLeave={() => {
+                                    if (popoverCloseTimeoutRef.current) {
+                                      clearTimeout(popoverCloseTimeoutRef.current);
+                                    }
+                                    popoverCloseTimeoutRef.current = setTimeout(() => {
+                                      setHoveredReqPopover(null);
+                                    }, 150);
+                                  }}
+                                  onClick={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setHoveredReqPopover(prev => (prev?.req.id === req.id ? null : { req, rect }));
+                                  }}
+                                  style={{
+                                    userSelect: 'none',
+                                    padding: 8,
+                                    background: 'var(--color-white)',
+                                    border: isHovered ? '1px solid #7c3aed' : '1px solid #8b5cf6',
+                                    borderRadius: 8,
+                                    cursor: canEdit ? 'grab' : 'pointer',
+                                    boxShadow: dragSnapshot.isDragging
+                                      ? '0 10px 20px rgba(0,0,0,0.2)'
+                                      : isHovered
+                                      ? '0 4px 12px rgba(139, 92, 246, 0.28)'
+                                      : '0 1px 3px rgba(0,0,0,0.05)',
+                                    transition: 'box-shadow 0.2s ease, border-color 0.15s ease',
+                                    position: 'relative',
+                                    zIndex: dragSnapshot.isDragging ? 9999 : 1,
+                                    ...dragProvided.draggableProps.style,
+                                  }}
+                                >
+                                  {/* Row 1: Patient Name & Status Badge */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 2 }}>
+                                    <div
+                                      style={{
+                                        fontWeight: 700,
+                                        fontSize: 13,
+                                        color: 'var(--color-gray-900)',
+                                        flex: 1,
+                                        minWidth: 0,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {req.patientName}
+                                    </div>
+                                    <span
+                                      style={{
+                                        fontSize: 9,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0,
+                                        background: '#f3e8ff',
+                                        color: '#6b21a8',
+                                        border: '1px solid #d8b4fe',
+                                      }}
+                                    >
+                                      Submitted
+                                    </span>
+                                  </div>
+
+                                  {/* Row 2: ID & Age / Sex & IP Tag + Ward */}
+                                  <div
+                                    style={{
+                                      fontSize: 11,
+                                      color: 'var(--color-gray-600)',
+                                      marginBottom: 2,
+                                      display: 'flex',
+                                      gap: 5,
+                                      alignItems: 'center',
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <span style={{ fontWeight: 600 }}>ID: {req.hospitalID}</span>
+                                    {(req.patientAge != null || req.patientSex) && (
+                                      <span>
+                                        • {req.patientAge != null ? `${req.patientAge}Y` : ''}
+                                        {req.patientSex ? `/${req.patientSex}` : ''}
+                                      </span>
+                                    )}
+                                    {req.patientType === 'IP' && (
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 2 }}>
+                                        <span
+                                          style={{
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            padding: '1px 5px',
+                                            borderRadius: 3,
+                                            lineHeight: 1.15,
+                                            background: theme === 'dark' ? 'rgba(99, 102, 241, 0.25)' : '#e0e7ff',
+                                            color: theme === 'dark' ? '#c7d2fe' : '#3730a3',
+                                            border: theme === 'dark' ? '1px solid rgba(129, 140, 248, 0.4)' : '1px solid #c7d2fe',
+                                            letterSpacing: '0.02em',
+                                          }}
+                                        >
+                                          IP
+                                        </span>
+                                        {req.ward && (
+                                          <span
+                                            style={{
+                                              fontSize: 10.5,
+                                              fontWeight: 500,
+                                              color: 'var(--color-gray-600)',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              whiteSpace: 'nowrap',
+                                              maxWidth: 90,
+                                            }}
+                                            title={req.ward}
+                                          >
+                                            {req.ward}
+                                          </span>
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Row 3: Procedure & Target Site */}
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: 'var(--color-accent)',
+                                      minWidth: 0,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {procName} {req.fromWhere ? `[${req.fromWhere}]` : ''}
+                                  </div>
+
+                                </div>
+                              )}
+                            </Draggable>
+                          );
+                        })
+                      )}
+                      {reqProvided.placeholder}
+                    </div>
+                  </div>
+                )}
+              </Droppable>
             </div>
           </div>
         </DragDropContext>
       </div>
+
+      {/* Floating Popover on Hover/Tap for Submitted Procedure Request Cards */}
+      {renderReqPopover()}
 
       {/* Add / Edit Appointment Modal */}
       <BottomSheetModal
@@ -3117,6 +3857,149 @@ export default function AppointmentPage() {
         onEdit={() => { }}
         navbarHeight={0}
       />
+
+      {/* Modality Selection Modal when dragging requisition to day */}
+      <BottomSheetModal
+        open={!!modalityPrompt?.isOpen}
+        onClose={() => setModalityPrompt(null)}
+        title="Select Procedure Modality"
+        maxWidth="460px"
+      >
+        {modalityPrompt && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: 'var(--color-gray-100)',
+                border: '1px solid var(--color-gray-200)',
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--color-gray-900)' }}>
+                {modalityPrompt.targetReq.patientName} (ID: {modalityPrompt.targetReq.hospitalID})
+              </div>
+              <div style={{ color: 'var(--color-accent)', fontWeight: 600, marginTop: 2 }}>
+                {modalityPrompt.targetReq.procedure === 'Others'
+                  ? modalityPrompt.targetReq.otherProcedure
+                  : modalityPrompt.targetReq.procedure}{' '}
+                {modalityPrompt.targetReq.fromWhere ? `[${modalityPrompt.targetReq.fromWhere}]` : ''}
+              </div>
+              {modalityPrompt.targetReq.referringConsultant && (
+                <div style={{ fontSize: 11, color: 'var(--color-gray-600)', marginTop: 2 }}>
+                  Ref: {modalityPrompt.targetReq.referringConsultant}
+                </div>
+              )}
+              <div style={{ color: 'var(--color-gray-600)', fontSize: 11, marginTop: 4 }}>
+                Target Date: <strong>{modalityPrompt.destDateKey}</strong>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-gray-700)', display: 'block', marginBottom: 6 }}>
+                Choose Modality *
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {['USG', 'CT', 'DSA', 'OT', 'XF', 'MRI'].map(mod => {
+                  const isSel = modalityPrompt.modality === mod;
+                  return (
+                    <button
+                      key={mod}
+                      type="button"
+                      onClick={() => setModalityPrompt(prev => prev ? { ...prev, modality: mod } : null)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: isSel ? '2px solid var(--color-accent)' : '1px solid var(--color-gray-300)',
+                        background: isSel ? 'rgba(59, 130, 246, 0.12)' : 'var(--color-white)',
+                        color: isSel ? 'var(--color-accent)' : 'var(--color-gray-800)',
+                        fontWeight: isSel ? 800 : 600,
+                        fontSize: 12.5,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {mod}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Other option */}
+              <div style={{ marginTop: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', color: 'var(--color-gray-700)' }}>
+                  <input
+                    type="radio"
+                    name="modalityPreset"
+                    checked={modalityPrompt.modality === 'Other'}
+                    onChange={() => setModalityPrompt(prev => prev ? { ...prev, modality: 'Other' } : null)}
+                  />
+                  <span>Other Modality</span>
+                </label>
+                {modalityPrompt.modality === 'Other' && (
+                  <input
+                    type="text"
+                    placeholder="e.g. Endoscopy, CathLab"
+                    value={modalityPrompt.customModality}
+                    onChange={e => setModalityPrompt(prev => prev ? { ...prev, customModality: e.target.value } : null)}
+                    className="form-input"
+                    style={{ fontSize: 12, padding: '6px 8px', marginTop: 4, width: '100%' }}
+                    autoFocus
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Optional Appointment Time */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-gray-700)', display: 'block', marginBottom: 4 }}>
+                Time (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 10:30 AM"
+                value={modalityPrompt.appointmentTime}
+                onChange={e => setModalityPrompt(prev => prev ? { ...prev, appointmentTime: e.target.value } : null)}
+                className="form-input"
+                style={{ fontSize: 12, padding: '6px 8px', width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setModalityPrompt(null)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 6,
+                  border: '1px solid var(--color-gray-300)',
+                  background: 'var(--color-gray-100)',
+                  color: 'var(--color-gray-700)',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmScheduleWithModality}
+                className="btn btn-primary"
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: 6,
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Accept &amp; Schedule
+              </button>
+            </div>
+          </div>
+        )}
+      </BottomSheetModal>
 
       {/* Toast Notification */}
       {toastMessage && (

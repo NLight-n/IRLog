@@ -77,6 +77,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: { ...data, updatedById: userId || null },
     });
 
+    // Synchronize status with linked ProcedureRequest (if any)
+    let linkedRequest: any = null;
+    try {
+      linkedRequest = await prisma.procedureRequest.findFirst({ where: { workItemId: id } });
+      if (linkedRequest) {
+        const reqUpdate: any = {};
+        if (updated.status === 'Done') {
+          reqUpdate.status = 'Done';
+        } else if (updated.status === 'Cancelled') {
+          reqUpdate.status = 'Cancelled';
+          reqUpdate.cancelledReason = updated.notDoneReason || null;
+        } else if (updated.status === 'NotDone') {
+          reqUpdate.status = 'NotDone';
+          reqUpdate.notDoneReason = updated.notDoneReason || null;
+        } else if (updated.status === 'Scheduled') {
+          reqUpdate.status = 'Accepted';
+        }
+        if (updated.dateScheduled) reqUpdate.scheduledDate = updated.dateScheduled;
+        if (updated.appointmentTime !== undefined) reqUpdate.scheduledTime = updated.appointmentTime;
+
+        await prisma.procedureRequest.update({
+          where: { id: linkedRequest.id },
+          data: reqUpdate,
+        });
+      }
+    } catch (syncErr) {
+      console.error('Failed to sync procedure request status:', syncErr);
+    }
+
     await logAuditEvent({
       actionType: 'UPDATE',
       userID: userId,
@@ -182,7 +211,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       url: '/worklist',
     }).catch(err => console.error('Failed to trigger push notification:', err));
 
-    return res.status(200).json(updated);
+    return res.status(200).json({
+      ...updated,
+      procedureRequest: linkedRequest ? { id: linkedRequest.id, status: linkedRequest.status, referringConsultant: linkedRequest.referringConsultant } : null,
+      referringConsultant: linkedRequest?.referringConsultant || null,
+    });
   }
 
   if (req.method === 'DELETE') {
@@ -191,6 +224,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!dbPerms?.editApptCard) return res.status(403).json({ message: 'Forbidden' });
     const before = await prisma.workItem.findUnique({ where: { id } });
     if (!before) return res.status(404).json({ message: 'Not found' });
+    // Unlink any ProcedureRequest before deleting work item
+    try {
+      const linkedRequest = await prisma.procedureRequest.findFirst({ where: { workItemId: id } });
+      if (linkedRequest) {
+        await prisma.procedureRequest.update({
+          where: { id: linkedRequest.id },
+          data: {
+            status: 'Submitted',
+            scheduledDate: null,
+            scheduledTime: null,
+            workItemId: null,
+          },
+        });
+      }
+    } catch (unlinkErr) {
+      console.error('Failed to unlink procedure request on work item delete:', unlinkErr);
+    }
+
     await prisma.workItem.delete({ where: { id } });
     await logAuditEvent({
       actionType: 'DELETE',

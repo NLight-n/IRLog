@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, Ref } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'next-auth/react';
-import { FiUser, FiSun, FiMoon, FiSettings, FiLogOut, FiHome, FiBarChart2, FiCalendar, FiDownload } from 'react-icons/fi';
+import { FiUser, FiSun, FiMoon, FiSettings, FiLogOut, FiHome, FiBarChart2, FiCalendar, FiDownload, FiClipboard } from 'react-icons/fi';
 import UserProfileSidebar from '../modals/UserProfileSidebar';
 import { useAppointmentsCount } from '../../lib/appointmentsCountContext';
 import { usePWA } from '../../lib/pwaContext';
@@ -12,21 +12,57 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
   const username = user?.username || user?.name || 'User';
   const role = user?.role || '';
   const displayName = role === 'Doctor' ? `Dr. ${username}` : username;
+  const isRequisitionOnly = !!(user?.permissions?.requisitionOnly);
   const handleLogout = () => signOut({ callbackUrl: `${router.basePath || ''}/login` });
-  const handleSettings = () => router.push('/settings');
+  const handleSettings = () => {
+    if (isRequisitionOnly) return;
+    router.push('/settings');
+  };
   const handleHome = () => {
+    if (isRequisitionOnly) {
+      if (router.pathname !== '/requisitions') router.push('/requisitions');
+      return;
+    }
     if (router.pathname === '/') {
       window.location.reload();
     } else {
       router.push('/');
     }
   };
-  const handleAnalytics = () => router.push('/analytics');
-  const handleWorklist = () => router.push('/worklist');
+  const handleAnalytics = () => {
+    if (isRequisitionOnly) return;
+    router.push('/analytics');
+  };
+  const handleWorklist = () => {
+    if (isRequisitionOnly) return;
+    router.push('/worklist');
+  };
+  const handleRequisitions = () => router.push('/requisitions');
+
   const [showProfile, setShowProfile] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(true);
+  const [submittedCount, setSubmittedCount] = useState(0);
   const { todayCount } = useAppointmentsCount();
   const displayCount = todayCount > 99 ? '99+' : todayCount;
+
+  // Poll / listen for submitted requisitions count
+  React.useEffect(() => {
+    const loadCount = () => {
+      fetch('/api/requisitions?status=Submitted')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setSubmittedCount(data.length);
+        })
+        .catch(() => {});
+    };
+    loadCount();
+    const interval = setInterval(loadCount, 30000);
+    window.addEventListener('irlog:requisitions-updated', loadCount);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('irlog:requisitions-updated', loadCount);
+    };
+  }, []);
 
   // Reset logoLoaded when appLogo changes
   React.useEffect(() => {
@@ -36,6 +72,9 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
   }, [appLogo]);
 
   const currentPath = router.pathname;
+  const disabledStyle: React.CSSProperties = isRequisitionOnly
+    ? { opacity: 0.25, pointerEvents: 'none', cursor: 'not-allowed', filter: 'grayscale(100%)' }
+    : {};
 
   return (
     <>
@@ -100,6 +139,7 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
                 onClick={promptInstall}
                 title="Install IRLog App"
                 className="navbar-icon-btn text-blue-500 hover:text-blue-600 font-bold"
+                style={disabledStyle}
               >
                 <FiDownload />
               </button>
@@ -107,9 +147,9 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
             <button title="Profile" className="navbar-icon-btn" onClick={() => setShowProfile(true)}>
               <FiUser />
             </button>
-            <button onClick={handleHome} title="Home" className={`navbar-icon-btn ${currentPath === '/' ? 'active-nav' : ''}`}><FiHome /></button>
-            <button onClick={handleAnalytics} title="Analytics" className={`navbar-icon-btn ${currentPath === '/analytics' ? 'active-nav' : ''}`}><FiBarChart2 /></button>
-            <button onClick={handleWorklist} title="Appointments" className={`navbar-icon-btn ${currentPath === '/worklist' ? 'active-nav' : ''}`} style={{ position: 'relative' }}>
+            <button onClick={handleHome} title="Home" className={`navbar-icon-btn ${currentPath === '/' ? 'active-nav' : ''}`} style={disabledStyle}><FiHome /></button>
+            <button onClick={handleAnalytics} title="Analytics" className={`navbar-icon-btn ${currentPath === '/analytics' ? 'active-nav' : ''}`} style={disabledStyle}><FiBarChart2 /></button>
+            <button onClick={handleWorklist} title="Appointments" className={`navbar-icon-btn ${currentPath === '/worklist' ? 'active-nav' : ''}`} style={{ ...disabledStyle, position: 'relative' }}>
               <FiCalendar />
               {todayCount > 0 && (
                 <span className="nav-badge-desktop">
@@ -117,7 +157,20 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
                 </span>
               )}
             </button>
-            <button onClick={handleSettings} title="Settings" className={`navbar-icon-btn ${currentPath === '/settings' ? 'active-nav' : ''}`}><FiSettings /></button>
+            <button
+              onClick={handleRequisitions}
+              title="Procedure Requisitions"
+              className={`navbar-icon-btn ${currentPath === '/requisitions' ? 'active-nav' : ''}`}
+              style={{ position: 'relative' }}
+            >
+              <FiClipboard />
+              {submittedCount > 0 && (
+                <span className="nav-badge-desktop">
+                  {submittedCount > 99 ? '99+' : submittedCount}
+                </span>
+              )}
+            </button>
+            <button onClick={handleSettings} title="Settings" className={`navbar-icon-btn ${currentPath === '/settings' ? 'active-nav' : ''}`} style={disabledStyle}><FiSettings /></button>
             <button onClick={() => onToggleTheme(theme === 'dark' ? 'light' : 'dark')} title="Toggle Theme" className="navbar-icon-btn">
               {theme === 'dark' ? <FiSun /> : <FiMoon />}
             </button>
@@ -131,10 +184,24 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
                 onClick={promptInstall}
                 title="Install App"
                 className="navbar-icon-btn text-blue-500 font-bold"
+                style={disabledStyle}
               >
                 <FiDownload />
               </button>
             )}
+            <button
+              onClick={handleRequisitions}
+              title="Requisitions"
+              className={`navbar-icon-btn ${currentPath === '/requisitions' ? 'active-nav' : ''}`}
+              style={{ position: 'relative' }}
+            >
+              <FiClipboard />
+              {submittedCount > 0 && (
+                <span className="nav-badge-mobile" style={{ top: -3, right: -3 }}>
+                  {submittedCount > 99 ? '99+' : submittedCount}
+                </span>
+              )}
+            </button>
             <button title="Profile" className="navbar-icon-btn" onClick={() => setShowProfile(true)}>
               <FiUser />
             </button>
@@ -151,48 +218,95 @@ const NavBar = forwardRef(function NavBar({ user, onToggleTheme, theme, appHeadi
       {/* Mobile Bottom Navigation Bar */}
       <div className="mobile-bottom-bar">
         <div className="mobile-bottom-bar-inner">
-          <button
-            onClick={handleHome}
-            className={`mobile-nav-btn ${currentPath === '/' ? 'active' : ''}`}
-            title="Home"
-          >
-            <FiHome size={20} />
-            <span>Home</span>
-          </button>
+          {isRequisitionOnly ? (
+            <>
+              <button
+                onClick={handleRequisitions}
+                className={`mobile-nav-btn ${currentPath === '/requisitions' ? 'active' : ''}`}
+                title="Procedure Requests"
+              >
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FiClipboard size={20} />
+                  {submittedCount > 0 && (
+                    <span className="nav-badge-mobile">
+                      {submittedCount > 99 ? '99+' : submittedCount}
+                    </span>
+                  )}
+                </div>
+                <span>Requests</span>
+              </button>
 
-          <button
-            onClick={handleAnalytics}
-            className={`mobile-nav-btn ${currentPath === '/analytics' ? 'active' : ''}`}
-            title="Analytics"
-          >
-            <FiBarChart2 size={20} />
-            <span>Analytics</span>
-          </button>
+              <button
+                onClick={handleLogout}
+                className="mobile-nav-btn"
+                title="Logout"
+              >
+                <FiLogOut size={20} />
+                <span>Logout</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleHome}
+                className={`mobile-nav-btn ${currentPath === '/' ? 'active' : ''}`}
+                title="Home"
+              >
+                <FiHome size={20} />
+                <span>Home</span>
+              </button>
 
-          <button
-            onClick={handleWorklist}
-            className={`mobile-nav-btn ${currentPath === '/worklist' ? 'active' : ''}`}
-            title="Appointments"
-          >
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FiCalendar size={20} />
-              {todayCount > 0 && (
-                <span className="nav-badge-mobile">
-                  {displayCount}
-                </span>
-              )}
-            </div>
-            <span>Appts</span>
-          </button>
+              <button
+                onClick={handleAnalytics}
+                className={`mobile-nav-btn ${currentPath === '/analytics' ? 'active' : ''}`}
+                title="Analytics"
+              >
+                <FiBarChart2 size={20} />
+                <span>Analytics</span>
+              </button>
 
-          <button
-            onClick={handleSettings}
-            className={`mobile-nav-btn ${currentPath === '/settings' ? 'active' : ''}`}
-            title="Settings"
-          >
-            <FiSettings size={20} />
-            <span>Settings</span>
-          </button>
+              <button
+                onClick={handleWorklist}
+                className={`mobile-nav-btn ${currentPath === '/worklist' ? 'active' : ''}`}
+                title="Appointments"
+              >
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FiCalendar size={20} />
+                  {todayCount > 0 && (
+                    <span className="nav-badge-mobile">
+                      {displayCount}
+                    </span>
+                  )}
+                </div>
+                <span>Appts</span>
+              </button>
+
+              <button
+                onClick={handleRequisitions}
+                className={`mobile-nav-btn ${currentPath === '/requisitions' ? 'active' : ''}`}
+                title="Requests"
+              >
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FiClipboard size={20} />
+                  {submittedCount > 0 && (
+                    <span className="nav-badge-mobile">
+                      {submittedCount > 99 ? '99+' : submittedCount}
+                    </span>
+                  )}
+                </div>
+                <span>Requests</span>
+              </button>
+
+              <button
+                onClick={handleSettings}
+                className={`mobile-nav-btn ${currentPath === '/settings' ? 'active' : ''}`}
+                title="Settings"
+              >
+                <FiSettings size={20} />
+                <span>Settings</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
